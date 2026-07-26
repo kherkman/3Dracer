@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Autokisarata — proseduraalinen 3D-generaattori</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#cdd9c6; font-family:'Segoe UI', system-ui, sans-serif; touch-action:none; }
+  canvas { display:block; touch-action:none; }
+
+  #ui {
+    position:fixed; top:18px; left:18px; z-index:10;
+    color:#2a2f22; width:340px; max-height:90vh; overflow-y:auto;
+    background:rgba(255,255,255,0.78);
+    backdrop-filter: blur(10px);
+    border:1px solid rgba(255,255,255,0.7);
+    border-radius:14px;
+    padding:16px;
+    box-shadow:0 8px 24px rgba(30,30,20,0.2);
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  #ui h1 { font-size:1.1rem; font-weight:700; margin-bottom:10px; color:#33301f; }
+  #ui p { font-size:0.78rem; line-height:1.35; color:#40402c; opacity:0.85; margin-bottom:10px; }
+
+  /* TIE- JA KISANAPIT IKKUNAN ALUSSA */
+  .ui-buttons-grid {
+    display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:12px;
+  }
+  .btn {
+    background:rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+    border:1px solid rgba(255,255,255,0.9); color:#33301f; font-size:0.78rem; font-weight:600;
+    padding:10px 6px; border-radius:8px; cursor:pointer; transition: all 0.15s ease;
+    box-shadow:0 3px 10px rgba(30,30,20,0.12); text-align:center;
+    touch-action: manipulation;
+  }
+  .btn:hover { background:rgba(255,255,255,1); transform:translateY(-1px); }
+  .btn:active { transform:translateY(0px) scale(0.97); }
+  .btn.active { background:#d4611f; color:#fff; }
+  .btn.race { background:#28a745; color:#fff; border-color:#28a745; grid-column: span 2; font-size:0.85rem; padding:11px; }
+  .btn.race:hover { background:#218838; }
+
+  .setting-row {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:6px; font-size:0.8rem; font-weight:600; color:#2a2f22;
+  }
+  .setting-row label { display:flex; align-items:center; gap:6px; }
+  .setting-row input[type="number"] {
+    width:54px; padding:6px 6px; border-radius:6px;
+    border:1px solid rgba(0,0,0,0.2); background:rgba(255,255,255,0.9);
+    font-size:0.85rem; font-weight:700; text-align:center; color:#2a2f22;
+    touch-action: manipulation; user-select:text; -webkit-user-select:text;
+  }
+  .setting-row input[type="range"] {
+    width:100px; cursor:pointer; touch-action: manipulation;
+  }
+
+  /* STEREO VR SÄÄTIMET */
+  #stereoControls {
+    display:none; margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.12);
+  }
+
+  /* PELAAJIEN NIMITOIMINTO JA OHJAINVALIKOT */
+  #playerControlsConfig {
+    margin-top:10px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.12);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .ctrl-card {
+    background:rgba(0,0,0,0.035); border:1px solid rgba(0,0,0,0.08);
+    padding:8px; border-radius:8px; display:flex; flex-direction:column; gap:4px;
+  }
+  .ctrl-group {
+    display:flex; flex-direction:column; gap:2px; font-size:0.78rem;
+  }
+  .ctrl-group label { font-weight:700; color:#33301f; display:flex; align-items:center; gap:4px; }
+  
+  .player-name-input {
+    padding:6px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.2);
+    background:#fff; font-size:0.8rem; font-weight:700; color:#2a2f22; outline:none;
+    touch-action: manipulation; user-select:text; -webkit-user-select:text;
+  }
+  .player-name-input:focus { border-color:#d4611f; }
+
+  .ctrl-select {
+    padding:6px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.2);
+    background:#fff; font-size:0.78rem; font-weight:600; color:#2a2f22; cursor:pointer;
+    touch-action: manipulation;
+  }
+
+  #btPairBtn {
+    margin-top:8px; width:100%; background:#0066cc; color:#fff;
+    border:none; padding:9px 10px; border-radius:8px; font-size:0.78rem;
+    font-weight:700; cursor:pointer; transition: background 0.15s ease;
+    touch-action: manipulation;
+  }
+  #btPairBtn:hover { background:#0052a3; }
+
+  /* KISAN LOPETUS X-NAPPI */
+  #exitRaceBtn {
+    display:none; position:fixed; top:12px; left:12px; z-index:300;
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(212,36,25,0.9); color:#fff; font-size:1.4rem; font-weight:bold;
+    border:2px solid #fff; cursor:pointer; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(0,0,0,0.3); transition: transform 0.15s ease;
+    touch-action: manipulation;
+  }
+  #exitRaceBtn:hover { transform: scale(1.1); background:#b81b11; }
+
+  /* YLÄPALKKI: SIJOITUSJÄRJESTYS */
+  #leaderboardBar {
+    display:none; position:fixed; top:0; left:50%; transform:translateX(-50%);
+    z-index:200; background:rgba(20,22,18,0.75); backdrop-filter: blur(8px);
+    padding:6px 18px; border-radius:0 0 12px 12px; color:#fff;
+    font-size:0.8rem; font-weight:700; border:1px solid rgba(255,255,255,0.25);
+    border-top:none; box-shadow:0 4px 16px rgba(0,0,0,0.3);
+    gap:14px; align-items:center; white-space:nowrap;
+  }
+  .lb-item { display:flex; align-items:center; gap:5px; }
+  .lb-badge { width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid #fff; }
+
+  /* PELAAJAKOHTAISET HUD-IKKUNAT */
+  .player-hud-box {
+    position:fixed; z-index:150; display:none;
+    background:rgba(255,255,255,0.82); backdrop-filter: blur(8px);
+    border:1px solid rgba(255,255,255,0.85); border-radius:10px;
+    padding:8px 12px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
+    color:#2a2f22; font-size:0.75rem; width:175px;
+  }
+  .player-hud-box h3 { font-size:0.82rem; font-weight:700; margin-bottom:3px; }
+  .hud-row { display:flex; justify-content:space-between; margin-top:2px; }
+  .hud-val { font-weight:700; font-family:Consolas, monospace; }
+
+  /* KOSKETUSNÄYTÖN VIRTUAALINAPIT */
+  .touch-controls-container {
+    position:fixed; z-index:250; display:none;
+    pointer-events:none; touch-action:none;
+  }
+  .touch-btn-group-left {
+    position:absolute; bottom:14px; left:14px;
+    display:flex; gap:10px; pointer-events:auto;
+  }
+  .touch-btn-group-right {
+    position:absolute; bottom:14px; right:14px;
+    display:flex; gap:10px; pointer-events:auto;
+  }
+  .touch-btn {
+    width:56px; height:56px; border-radius:50%;
+    background:rgba(255,255,255,0.5); backdrop-filter: blur(8px);
+    border:2px solid rgba(255,255,255,0.85); color:#111;
+    font-size:1.4rem; font-weight:bold; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(0,0,0,0.3); touch-action:none; cursor:pointer;
+  }
+  .touch-btn.active {
+    background:rgba(212,97,31,0.9) !important; color:#fff !important; transform:scale(0.92);
+  }
+  .touch-btn.gas { background:rgba(40,167,69,0.65); border-color:#28a745; color:#fff; }
+  .touch-btn.brake { background:rgba(220,53,69,0.65); border-color:#dc3545; color:#fff; }
+
+  /* JAKOVIIVAT JAETULLA RUUDULLA */
+  .grid-divider { display:none; position:fixed; background:#111; z-index:100; box-shadow:0 0 8px rgba(0,0,0,0.6); }
+  #dividerH { top:50%; left:0; width:100%; height:4px; transform:translateY(-50%); }
+  #dividerV { top:0; left:50%; width:4px; height:100%; transform:translateX(-50%); }
+  #dividerVTop { top:0; left:50%; width:4px; height:50%; transform:translateX(-50%); }
+
+  /* LÄHTÖLASKENNAN OVERLAY */
+  #countdownOverlay {
+    position:fixed; inset:0; z-index:500;
+    display:none; align-items:center; justify-content:center;
+    font-size:8rem; font-weight:900; color:#ffffff;
+    text-shadow:0 10px 30px rgba(0,0,0,0.7), 0 0 20px rgba(0,0,0,0.5);
+    pointer-events:none; font-family:'Segoe UI', system-ui, sans-serif;
+  }
+  .countdown-pop { animation: popAnim 0.85s ease-out forwards; }
+  @keyframes popAnim {
+    0% { transform: scale(1.8); opacity: 0; }
+    25% { transform: scale(1.0); opacity: 1; }
+    75% { transform: scale(0.95); opacity: 1; }
+    100% { transform: scale(0.6); opacity: 0; }
+  }
+
+  #loading {
+    position:fixed; inset:0; background:#cdd9c6; z-index:1000;
+    display:flex; align-items:center; justify-content:center;
+    color:#33301f; font-size:1rem; letter-spacing:0.5px; transition: opacity 0.6s ease;
+  }
+  #errorBox {
+    position:fixed; top:18px; right:18px; z-index:2000; max-width:360px;
+    background:rgba(255,235,235,0.95); border:1px solid #e08a8a; color:#7a1f1f;
+    padding:14px 16px; border-radius:10px; font-size:0.8rem; line-height:1.4; display:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">🏁 Rakennetaan rataa…</div>
+<div id="errorBox"></div>
+
+<button id="exitRaceBtn" title="Lopeta kisa">✕</button>
+<div id="leaderboardBar"></div>
+
+<div id="countdownOverlay">3</div>
+<div id="dividerH" class="grid-divider"></div>
+<div id="dividerV" class="grid-divider"></div>
+<div id="dividerVTop" class="grid-divider"></div>
+
+<!-- PELAAJA-HUDIT -->
+<div id="hudP1" class="player-hud-box"></div>
+<div id="hudP2" class="player-hud-box"></div>
+<div id="hudP3" class="player-hud-box"></div>
+<div id="hudP4" class="player-hud-box"></div>
+
+<!-- KOSKETUSNÄYTÖN OHJAIN-OVERLAYT -->
+<div id="touchP1" class="touch-controls-container">
+  <div class="touch-btn-group-left">
+    <div class="touch-btn btn-left">◀</div>
+    <div class="touch-btn btn-right">▶</div>
+  </div>
+  <div class="touch-btn-group-right">
+    <div class="touch-btn btn-brake brake">🛑</div>
+    <div class="touch-btn btn-gas gas">⚡</div>
+  </div>
+</div>
+
+<div id="touchP2" class="touch-controls-container">
+  <div class="touch-btn-group-left">
+    <div class="touch-btn btn-left">◀</div>
+    <div class="touch-btn btn-right">▶</div>
+  </div>
+  <div class="touch-btn-group-right">
+    <div class="touch-btn btn-brake brake">🛑</div>
+    <div class="touch-btn btn-gas gas">⚡</div>
+  </div>
+</div>
+
+<div id="touchP3" class="touch-controls-container">
+  <div class="touch-btn-group-left">
+    <div class="touch-btn btn-left">◀</div>
+    <div class="touch-btn btn-right">▶</div>
+  </div>
+  <div class="touch-btn-group-right">
+    <div class="touch-btn btn-brake brake">🛑</div>
+    <div class="touch-btn btn-gas gas">⚡</div>
+  </div>
+</div>
+
+<div id="touchP4" class="touch-controls-container">
+  <div class="touch-btn-group-left">
+    <div class="touch-btn btn-left">◀</div>
+    <div class="touch-btn btn-right">▶</div>
+  </div>
+  <div class="touch-btn-group-right">
+    <div class="touch-btn btn-brake brake">🛑</div>
+    <div class="touch-btn btn-gas gas">⚡</div>
+  </div>
+</div>
+
+<div id="ui">
+  <h1>🏁 Autokisaradan generaattori</h1>
+
+  <div class="ui-buttons-grid">
+    <button class="btn race" id="raceBtn">🏎️ Aloita kisa</button>
+    <button class="btn" id="regenBtn">🔄 Uusi rata</button>
+    <button class="btn" id="flyBtn">📷 Ajolinja</button>
+    <button class="btn" id="rotateBtn">↻ Kierto</button>
+    <button class="btn active" id="treesBtn">🌲 Metsä</button>
+    <button class="btn active" id="curbBtn">🚧 Reunat</button>
+    <button class="btn" id="stereoBtn" style="grid-column: span 2;">🥽 3D Stereo</button>
+  </div>
+
+  <div id="stereoControls">
+    <div class="setting-row">
+      <label for="eyeDistSlider">👁️ Silmäväli (IPD):</label>
+      <input type="range" id="eyeDistSlider" min="0.01" max="0.80" step="0.01" value="0.15">
+      <span id="eyeDistVal" class="hud-val">0.15m</span>
+    </div>
+    <div class="setting-row">
+      <label for="imgOffsetSlider">↔️ Kuvan siirtymä:</label>
+      <input type="range" id="imgOffsetSlider" min="-60" max="60" step="1" value="0">
+      <span id="imgOffsetVal" class="hud-val">0px</span>
+    </div>
+  </div>
+
+  <p id="uiDesc">Valitse kilpailijat, pelaajat (1-4) sekä kierrosmäärä. Syötä nimet ja valitse ohjaimet!</p>
+  
+  <div class="setting-row">
+    <label for="numCompetitors">🏁 Kilpailijat (1-8):</label>
+    <input type="number" id="numCompetitors" min="1" max="8" value="2">
+  </div>
+  <div class="setting-row">
+    <label for="numPlayers">🎮 Pelaajat (1-4):</label>
+    <input type="number" id="numPlayers" min="1" max="4" value="1">
+  </div>
+  <div class="setting-row">
+    <label for="numLaps">🔄 Kierrokset (1-20):</label>
+    <input type="number" id="numLaps" min="1" max="20" value="3">
+  </div>
+
+  <div id="playerControlsConfig"></div>
+  <button id="btPairBtn">📶 Yhdistä Bluetooth-laite (Web BT)</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://unpkg.com/three@0.149.0/build/three.min.js"><\/script>');
+  }
+</script>
+
+<script>
+window.addEventListener('error', function(e){
+  var box = document.getElementById('errorBox');
+  box.style.display = 'block';
+  box.textContent = '⚠️ Virhe: ' + (e.message || e) + ' — tarkista internetyhteys.';
+});
+
+(function(){
+
+/* ---------------------------------------------------------------
+   APUFUNKTIOT & TEEMA
+--------------------------------------------------------------- */
+function concatFloat32(arrays) {
+  var total = 0;
+  for (var i=0;i<arrays.length;i++) total += arrays[i].length;
+  var result = new Float32Array(total);
+  var offset = 0;
+  for (var i=0;i<arrays.length;i++) { result.set(arrays[i], offset); offset += arrays[i].length; }
+  return result;
+}
+function mergeGeometries(geometries) {
+  var positions = [], normals = [], uvs = [];
+  for (var i=0;i<geometries.length;i++) {
+    var g = geometries[i];
+    var ng = g.index ? g.toNonIndexed() : g;
+    positions.push(ng.attributes.position.array);
+    normals.push(ng.attributes.normal.array);
+    if (ng.attributes.uv) uvs.push(ng.attributes.uv.array);
+  }
+  var merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.BufferAttribute(concatFloat32(positions), 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(concatFloat32(normals), 3));
+  if (uvs.length === geometries.length) {
+    merged.setAttribute('uv', new THREE.BufferAttribute(concatFloat32(uvs), 2));
+  }
+  return merged;
+}
+function mergeGeometriesWithColors(parts) {
+  var positions = [], normals = [], colors = [];
+  for (var i=0;i<parts.length;i++) {
+    var g = parts[i].geo;
+    var ng = g.index ? g.toNonIndexed() : g;
+    positions.push(ng.attributes.position.array);
+    normals.push(ng.attributes.normal.array);
+    var count = ng.attributes.position.count;
+    var carr = new Float32Array(count*3);
+    for (var k=0;k<count;k++) { carr[k*3]=parts[i].color[0]; carr[k*3+1]=parts[i].color[1]; carr[k*3+2]=parts[i].color[2]; }
+    colors.push(carr);
+  }
+  var merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.BufferAttribute(concatFloat32(positions), 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(concatFloat32(normals), 3));
+  merged.setAttribute('color', new THREE.BufferAttribute(concatFloat32(colors), 3));
+  return merged;
+}
+function lerp(a,b,t){ return a+(b-a)*t; }
+function lerp3(a,b,t){ return [lerp(a[0],b[0],t), lerp(a[1],b[1],t), lerp(a[2],b[2],t)]; }
+function smoothstep(e0,e1,x){ var t=Math.min(1,Math.max(0,(x-e0)/(e1-e0))); return t*t*(3-2*t); }
+
+function formatTime(sec) {
+  if (sec === null || sec === undefined || isNaN(sec)) return "--:--.-";
+  var m = Math.floor(sec / 60);
+  var s = Math.floor(sec % 60);
+  var ms = Math.floor((sec % 1) * 10);
+  var mStr = m < 10 ? "0" + m : "" + m;
+  var sStr = s < 10 ? "0" + s : "" + s;
+  return mStr + ":" + sStr + "." + ms;
+}
+
+var CAR_PALETTES = [
+  { color: 0xd42419, accent: 0x111111, hexCss: '#d42419' },
+  { color: 0x28a745, accent: 0xffd700, hexCss: '#28a745' },
+  { color: 0xeb8b00, accent: 0x111111, hexCss: '#eb8b00' },
+  { color: 0x8e24aa, accent: 0x00e676, hexCss: '#8e24aa' },
+  { color: 0x1e62d0, accent: 0xffffff, hexCss: '#1e62d0' },
+  { color: 0x00acc1, accent: 0xff3d00, hexCss: '#00acc1' },
+  { color: 0xff6d00, accent: 0x212121, hexCss: '#ff6d00' },
+  { color: 0xd81b60, accent: 0x3949ab, hexCss: '#d81b60' }
+];
+
+/* ---------------------------------------------------------------
+   PERUSASETUKSET JA KAMERAT
+--------------------------------------------------------------- */
+var scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xd8e4d0, 60, 280);
+
+var camera = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 600);
+camera.position.set(70, 55, 90);
+
+var camera2 = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 600);
+var camera3 = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 600);
+var camera4 = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 600);
+
+var cameraLeft = new THREE.PerspectiveCamera(48, (innerWidth/2)/innerHeight, 0.1, 600);
+var cameraRight = new THREE.PerspectiveCamera(48, (innerWidth/2)/innerHeight, 0.1, 600);
+var camRightVec = new THREE.Vector3();
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+/* Kameraohjaus (vapaa katselu) */
+var controls = (function(){
+  var target = new THREE.Vector3(0, 6, 0);
+  var spherical = new THREE.Spherical();
+  var startOffset = new THREE.Vector3().copy(camera.position).sub(target);
+  spherical.setFromVector3(startOffset);
+  var targetSpherical = spherical.clone();
+
+  var minDistance = 8, maxDistance = 400;
+  var minPhi = 0.06, maxPhi = Math.PI/2 - 0.02;
+
+  var dragging = false, prevX = 0, prevY = 0;
+  var dom = renderer.domElement;
+  dom.style.touchAction = 'none';
+
+  dom.addEventListener('pointerdown', function(e){
+    if (isRacing) return;
+    dragging = true; prevX = e.clientX; prevY = e.clientY;
+    dom.setPointerCapture(e.pointerId);
+  });
+  dom.addEventListener('pointerup', function(){ dragging = false; });
+  dom.addEventListener('pointercancel', function(){ dragging = false; });
+  dom.addEventListener('pointermove', function(e){
+    if (!dragging || isRacing) return;
+    var dx = e.clientX - prevX, dy = e.clientY - prevY;
+    prevX = e.clientX; prevY = e.clientY;
+    targetSpherical.theta -= dx * 0.006;
+    targetSpherical.phi -= dy * 0.006;
+    targetSpherical.phi = Math.max(minPhi, Math.min(maxPhi, targetSpherical.phi));
+  });
+  dom.addEventListener('wheel', function(e){
+    if (isRacing) return;
+    e.preventDefault();
+    targetSpherical.radius *= (1 + e.deltaY * 0.001);
+    targetSpherical.radius = Math.max(minDistance, Math.min(maxDistance, targetSpherical.radius));
+  }, { passive:false });
+
+  return {
+    target: target,
+    autoRotate: false,
+    autoRotateSpeed: 0.7,
+    update: function(delta){
+      if (this.autoRotate) targetSpherical.theta += this.autoRotateSpeed * delta * 0.3;
+      spherical.theta += (targetSpherical.theta - spherical.theta) * 0.12;
+      spherical.phi += (targetSpherical.phi - spherical.phi) * 0.12;
+      spherical.radius += (targetSpherical.radius - spherical.radius) * 0.12;
+      var offset = new THREE.Vector3().setFromSpherical(spherical);
+      camera.position.copy(target).add(offset);
+      camera.lookAt(target);
+    },
+    setDistance: function(d){
+      d = Math.max(minDistance, Math.min(maxDistance, d));
+      spherical.radius = d; targetSpherical.radius = d;
+    }
+  };
+})();
+
+/* ---------------------------------------------------------------
+   TAIVAS JA VALOT
+--------------------------------------------------------------- */
+(function(){
+  var skyGeo = new THREE.SphereGeometry(280, 32, 16);
+  var skyMat = new THREE.ShaderMaterial({
+    uniforms: {
+      topColor:    { value: new THREE.Color(0x7fa8d8) },
+      bottomColor: { value: new THREE.Color(0xe9ecdd) },
+      offset:      { value: 30 },
+      exponent:    { value: 0.75 }
+    },
+    vertexShader: [
+      'varying vec3 vWorldPosition;',
+      'void main() {',
+      '  vec4 worldPosition = modelMatrix * vec4(position, 1.0);',
+      '  vWorldPosition = worldPosition.xyz;',
+      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+      '}'
+    ].join('\n'),
+    fragmentShader: [
+      'uniform vec3 topColor;',
+      'uniform vec3 bottomColor;',
+      'uniform float offset;',
+      'uniform float exponent;',
+      'varying vec3 vWorldPosition;',
+      'void main() {',
+      '  float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y;',
+      '  gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);',
+      '}'
+    ].join('\n'),
+    side: THREE.BackSide
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+})();
+
+var hemi = new THREE.HemisphereLight(0xbcd4e8, 0x30301c, 0.85);
+scene.add(hemi);
+
+var sun = new THREE.DirectionalLight(0xfff2d8, 1.9);
+sun.position.set(60, 90, 40);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -120; sun.shadow.camera.right = 120;
+sun.shadow.camera.top = 120;  sun.shadow.camera.bottom = -120;
+sun.shadow.camera.near = 0.5;  sun.shadow.camera.far = 320;
+sun.shadow.bias = -0.0015;
+scene.add(sun); scene.add(sun.target);
+
+var fill = new THREE.DirectionalLight(0xbcd0ff, 0.3);
+fill.position.set(-40, 30, -30);
+scene.add(fill);
+
+/* ---------------------------------------------------------------
+   MAASTOKOHINA JA RADAN GEOMETRIA
+--------------------------------------------------------------- */
+var noiseSeed = 0;
+var currentHillAmp = 8;
+function hash2(x,y){
+  var s = Math.sin(x*127.1 + y*311.7 + noiseSeed*0.013) * 43758.5453123;
+  return s - Math.floor(s);
+}
+function smoothNoise(x,y){
+  var xi=Math.floor(x), yi=Math.floor(y);
+  var xf=x-xi, yf=y-yi;
+  var v00=hash2(xi,yi), v10=hash2(xi+1,yi), v01=hash2(xi,yi+1), v11=hash2(xi+1,yi+1);
+  var u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  return v00+(v10-v00)*u + (v01-v00)*v + (v00-v10-v01+v11)*u*v;
+}
+function fbm(x,y,octaves){
+  var total=0, amp=0.5, freq=1, maxAmp=0;
+  for(var i=0;i<octaves;i++){
+    total += smoothNoise(x*freq, y*freq)*amp;
+    maxAmp += amp; amp*=0.5; freq*=2.05;
+  }
+  return total/maxAmp;
+}
+function rawHeightAt(x,z){
+  var h1 = fbm(x*0.011, z*0.011, 4);
+  var h2 = fbm(x*0.045+50, z*0.045+50, 3);
+  return (h1*0.75 + h2*0.25) * currentHillAmp;
+}
+
+var ROAD_HALF_WIDTH = 4.0;
+var CURB_WIDTH = 0.55;
+var ROAD_ELEVATION = 0.22;
+var SHOULDER_END = ROAD_HALF_WIDTH + CURB_WIDTH + 0.3;
+var BLEND_END = SHOULDER_END + 11;
+
+function buildTrackPath(){
+  var numCtrl = 12 + Math.floor(Math.random()*6);
+  var baseRadius = 45 + Math.random()*25;
+  var angleStep = (Math.PI*2)/numCtrl;
+  var ctrl = [];
+  for(var i=0;i<numCtrl;i++){
+    var angle = i*angleStep + (Math.random()-0.5)*angleStep*0.35;
+    var r = baseRadius*(0.72+Math.random()*0.55);
+    ctrl.push(new THREE.Vector3(Math.cos(angle)*r, 0, Math.sin(angle)*r));
+  }
+  
+  var curveBase = new THREE.CatmullRomCurve3(ctrl, true, 'catmullrom', 0.5);
+  
+  var n = 320;
+  var rawPoints = [];
+  var freq1 = 3+Math.floor(Math.random()*3), freq2 = 7+Math.floor(Math.random()*4);
+  var phase1 = Math.random()*Math.PI*2, phase2 = Math.random()*Math.PI*2;
+  var amp1 = baseRadius*0.04, amp2 = baseRadius*0.02;
+
+  for(var i=0; i<n; i++){
+    var u = i/n;
+    var p = curveBase.getPointAt(u);
+    var t = curveBase.getTangentAt(u);
+    var normal = new THREE.Vector3(-t.z, 0, t.x).normalize();
+    var lateral = Math.sin(u*Math.PI*2*freq1+phase1)*amp1 + Math.sin(u*Math.PI*2*freq2+phase2)*amp2;
+    p.addScaledVector(normal, lateral);
+    rawPoints.push(p);
+  }
+
+  var curveWiggly = new THREE.CatmullRomCurve3(rawPoints, true, 'catmullrom', 0.5);
+
+  var samples = [];
+  for(var i=0; i<n; i++){
+    var u = i/n;
+    var p = curveWiggly.getPointAt(u);
+    var t = curveWiggly.getTangentAt(u).normalize();
+    samples.push({ x:p.x, z:p.z, tx:t.x, tz:t.z, y:0, bank:0, dist:0, surface:0 });
+  }
+
+  var cum = 0;
+  for(var i=0; i<n; i++){
+    var j = (i+1)%n;
+    var dx = samples[j].x - samples[i].x, dz = samples[j].z - samples[i].z;
+    samples[i].segLen = Math.sqrt(dx*dx + dz*dz);
+    samples[i].dist = cum;
+    cum += samples[i].segLen;
+  }
+  var totalLength = cum;
+
+  for(var i=0; i<n; i++) samples[i].rawY = rawHeightAt(samples[i].x, samples[i].z);
+  var win = 5;
+  for(var i=0; i<n; i++){
+    var sum = 0;
+    for(var k=-win; k<=win; k++){
+      sum += samples[(i+k+n)%n].rawY;
+    }
+    samples[i].y = sum / (win*2+1);
+  }
+
+  var maxSlope = 0.08;
+  for(var pass=0; pass<30; pass++){
+    for(var i=0; i<n; i++){
+      var j = (i+1)%n;
+      var seg = samples[i].segLen;
+      var diff = samples[j].y - samples[i].y;
+      var maxDiff = maxSlope * seg;
+      if(diff > maxDiff){
+        var mid = (samples[i].y + samples[j].y)/2;
+        samples[i].y = mid - maxDiff/2;
+        samples[j].y = mid + maxDiff/2;
+      } else if(diff < -maxDiff){
+        var mid2 = (samples[i].y + samples[j].y)/2;
+        samples[i].y = mid2 + maxDiff/2;
+        samples[j].y = mid2 - maxDiff/2;
+      }
+    }
+  }
+
+  var bankRaw = new Array(n);
+  for(var i=0; i<n; i++){
+    var prev = samples[(i-1+n)%n];
+    var a1 = Math.atan2(samples[i].tz, samples[i].tx);
+    var a0 = Math.atan2(prev.tz, prev.tx);
+    var da = a1 - a0;
+    while(da > Math.PI) da -= Math.PI*2;
+    while(da < -Math.PI) da += Math.PI*2;
+    bankRaw[i] = THREE.MathUtils.clamp(da * 2.5, -0.28, 0.28);
+  }
+  for(var i=0; i<n; i++){
+    var sum = 0;
+    for(var k=-4; k<=4; k++) sum += bankRaw[(i+k+n)%n];
+    samples[i].bank = sum / 9;
+  }
+
+  var idx = 0, type = Math.random()<0.5?0:1;
+  while(idx < n){
+    var runLen = 14 + Math.floor(Math.random()*22);
+    for(var k=0; k<runLen && idx<n; k++, idx++) samples[idx].surface = type;
+    type = 1 - type;
+  }
+
+  var trackPoints3D = [];
+  for(var i=0; i<n; i++){
+    trackPoints3D.push(new THREE.Vector3(samples[i].x, samples[i].y + ROAD_ELEVATION, samples[i].z));
+  }
+  var trackCurve3D = new THREE.CatmullRomCurve3(trackPoints3D, true, 'catmullrom', 0.5);
+
+  return { samples:samples, n:n, totalLength:totalLength, curve3D:trackCurve3D };
+}
+
+function closestSampleInfo(track, x, z){
+  var samples = track.samples, n = track.n;
+  var best = Infinity, bi = 0;
+  for(var i=0;i<n;i++){
+    var dx = x-samples[i].x, dz = z-samples[i].z;
+    var d2 = dx*dx+dz*dz;
+    if(d2<best){ best=d2; bi=i; }
+  }
+  
+  var s = samples[bi];
+  var perpX = -s.tz, perpZ = s.tx;
+  var dx = x - s.x, dz = z - s.z;
+  var latDist = dx * perpX + dz * perpZ;
+
+  return { dist: Math.sqrt(best), sample: s, sampleIndex: bi, latDist: latDist };
+}
+
+function terrainSample(track, x, z){
+  var info = closestSampleInfo(track, x, z);
+  var raw = rawHeightAt(x, z);
+  var d = info.dist;
+  var y, zoneT;
+
+  if(d < SHOULDER_END){
+    y = info.sample.y - 0.25;
+    zoneT = 0;
+  } else {
+    var t = smoothstep(SHOULDER_END, BLEND_END, d);
+    y = lerp(info.sample.y - 0.25, raw, t);
+    zoneT = t;
+  }
+  var shoulder = [0.34,0.28,0.19];
+  var patch = smoothNoise(x*0.05+50, z*0.05+50);
+  var grassA = [0.20,0.38,0.13], grassB = [0.30,0.47,0.19];
+  var grass = lerp3(grassA, grassB, patch);
+  var heightT = THREE.MathUtils.clamp(raw/(currentHillAmp||10), 0, 1);
+  var rock = [0.52,0.50,0.46];
+  var grassOrRock = lerp3(grass, rock, smoothstep(0.6, 0.95, heightT));
+  var col = lerp3(shoulder, grassOrRock, zoneT);
+  return { y:y, color:col };
+}
+
+function getRoadSurfaceHeight(track, x, z){
+  var info = closestSampleInfo(track, x, z);
+  var s = info.sample;
+  var bankOffset = Math.sin(s.bank) * info.latDist;
+  return s.y + ROAD_ELEVATION + bankOffset;
+}
+
+/* ---------------------------------------------------------------
+   MAALIVIIVAN GENERUONTI
+--------------------------------------------------------------- */
+function makeCheckeredTexture() {
+  var c = document.createElement('canvas'); c.width = 128; c.height = 32;
+  var ctx = c.getContext('2d');
+  var cols = 8, rows = 2;
+  var w = c.width / cols, h = c.height / rows;
+  for (var r = 0; r < rows; r++) {
+    for (var col = 0; col < cols; col++) {
+      ctx.fillStyle = (r + col) % 2 === 0 ? '#ffffff' : '#111111';
+      ctx.fillRect(col * w, r * h, w, h);
+    }
+  }
+  var tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+function makeBannerTexture() {
+  var c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#e62419'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeRect(6, 6, c.width-12, c.height-12);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 50px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('START / FINISH', c.width / 2, c.height / 2);
+  var tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+function buildFinishLine(track) {
+  var group = new THREE.Group();
+  var s0 = track.samples[0];
+  var tangent = new THREE.Vector3(s0.tx, 0, s0.tz).normalize();
+  var perp = new THREE.Vector3(-s0.tz, 0, s0.tx).normalize();
+
+  var L = 2.4;
+  var W = ROAD_HALF_WIDTH;
+
+  var backCenter = new THREE.Vector3(s0.x, 0, s0.z).addScaledVector(tangent, -L / 2);
+  var frontCenter = new THREE.Vector3(s0.x, 0, s0.z).addScaledVector(tangent, L / 2);
+
+  var blX = backCenter.x + perp.x * W, blZ = backCenter.z + perp.z * W;
+  var blY = getRoadSurfaceHeight(track, blX, blZ) + 0.04;
+
+  var brX = backCenter.x - perp.x * W, brZ = backCenter.z - perp.z * W;
+  var brY = getRoadSurfaceHeight(track, brX, brZ) + 0.04;
+
+  var flX = frontCenter.x + perp.x * W, flZ = frontCenter.z + perp.z * W;
+  var flY = getRoadSurfaceHeight(track, flX, flZ) + 0.04;
+
+  var frX = frontCenter.x - perp.x * W, frZ = frontCenter.z - perp.z * W;
+  var frY = getRoadSurfaceHeight(track, frX, frZ) + 0.04;
+
+  var positions = new Float32Array([
+    blX, blY, blZ,
+    brX, brY, brZ,
+    flX, flY, flZ,
+    frX, frY, frZ
+  ]);
+
+  var uvs = new Float32Array([
+    0, 0,
+    1, 0,
+    0, 1,
+    1, 1
+  ]);
+
+  var indices = [
+    0, 2, 1,
+    1, 2, 3
+  ];
+
+  var stripeGeo = new THREE.BufferGeometry();
+  stripeGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  stripeGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  stripeGeo.setIndex(indices);
+  stripeGeo.computeVertexNormals();
+
+  var stripeMat = new THREE.MeshStandardMaterial({
+    map: makeCheckeredTexture(),
+    roughness: 0.5,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4
+  });
+
+  var stripe = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.receiveShadow = true;
+  group.add(stripe);
+
+  var postMat = new THREE.MeshStandardMaterial({ color: 0x333336, roughness: 0.4, metalness: 0.6 });
+  var postGeo = new THREE.CylinderGeometry(0.18, 0.22, 5.5, 12);
+  postGeo.translate(0, 2.75, 0);
+
+  var leftX = s0.x + perp.x * (ROAD_HALF_WIDTH + 0.8);
+  var leftZ = s0.z + perp.z * (ROAD_HALF_WIDTH + 0.8);
+  var leftY = getRoadSurfaceHeight(track, leftX, leftZ);
+
+  var rightX = s0.x - perp.x * (ROAD_HALF_WIDTH + 0.8);
+  var rightZ = s0.z - perp.z * (ROAD_HALF_WIDTH + 0.8);
+  var rightY = getRoadSurfaceHeight(track, rightX, rightZ);
+
+  var leftPost = new THREE.Mesh(postGeo, postMat);
+  leftPost.position.set(leftX, leftY, leftZ);
+  leftPost.castShadow = true;
+  group.add(leftPost);
+
+  var rightPost = new THREE.Mesh(postGeo, postMat);
+  rightPost.position.set(rightX, rightY, rightZ);
+  rightPost.castShadow = true;
+  group.add(rightPost);
+
+  var bannerGeo = new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2 + 1.6, 1.2, 0.3);
+  var bannerTex = makeBannerTexture();
+  var bannerMat = [
+    postMat, postMat, postMat, postMat,
+    new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.4 }),
+    new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.4 })
+  ];
+  var banner = new THREE.Mesh(bannerGeo, bannerMat);
+  var angle = Math.atan2(s0.tx, s0.tz);
+  var topCenterY = (leftY + rightY) / 2 + 4.8;
+  banner.position.set(s0.x, topCenterY, s0.z);
+  banner.rotation.y = angle;
+  banner.castShadow = true;
+  group.add(banner);
+
+  return group;
+}
+
+/* ---------------------------------------------------------------
+   TEKSTUURIT JA MALLIT
+--------------------------------------------------------------- */
+function makeAsphaltTexture(){
+  var size=256, c=document.createElement('canvas'); c.width=c.height=size;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle='#3a3a3d'; ctx.fillRect(0,0,size,size);
+  for(var i=0;i<2600;i++){
+    var x=Math.random()*size, y=Math.random()*size;
+    var g=Math.floor(Math.random()*40-20);
+    var v=58+g;
+    ctx.fillStyle='rgba('+v+','+v+','+(v+3)+',0.5)';
+    ctx.fillRect(x,y,1.4,1.4);
+  }
+  var tex=new THREE.CanvasTexture(c);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.encoding=THREE.sRGBEncoding;
+  return tex;
+}
+function makeGravelTexture(){
+  var size=256, c=document.createElement('canvas'); c.width=c.height=size;
+  var ctx=c.getContext('2d');
+  var grad=ctx.createLinearGradient(0,0,0,size);
+  grad.addColorStop(0,'#ab8f66'); grad.addColorStop(1,'#8f7350');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,size,size);
+  for(var i=0;i<3200;i++){
+    var x=Math.random()*size, y=Math.random()*size;
+    var r=0.6+Math.random()*1.8;
+    var g=Math.floor(Math.random()*50-25);
+    ctx.fillStyle='rgba('+(150+g)+','+(125+g)+','+(90+g)+',0.6)';
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  var tex=new THREE.CanvasTexture(c);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.encoding=THREE.sRGBEncoding;
+  return tex;
+}
+function makeGrainTexture(){
+  var size=128, c=document.createElement('canvas'); c.width=c.height=size;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle='rgb(232,232,232)'; ctx.fillRect(0,0,size,size);
+  for(var i=0;i<1800;i++){
+    var x=Math.random()*size, y=Math.random()*size;
+    var v=Math.floor(Math.random()*40);
+    var g=200-v;
+    ctx.fillStyle='rgba('+g+','+g+','+g+',0.5)';
+    ctx.fillRect(x,y,1,1);
+  }
+  var tex=new THREE.CanvasTexture(c);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  return tex;
+}
+
+function buildTerrain(track){
+  var minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+  for(var i=0;i<track.n;i++){
+    var s=track.samples[i];
+    if(s.x<minX)minX=s.x; if(s.x>maxX)maxX=s.x;
+    if(s.z<minZ)minZ=s.z; if(s.z>maxZ)maxZ=s.z;
+  }
+  var cx=(minX+maxX)/2, cz=(minZ+maxZ)/2;
+  var size=Math.max(maxX-minX, maxZ-minZ)+140;
+  var segs=112;
+  var geo=new THREE.PlaneGeometry(size,size,segs,segs);
+  geo.rotateX(-Math.PI/2);
+  geo.translate(cx,0,cz);
+  var posAttr=geo.attributes.position;
+  var colors=new Float32Array(posAttr.count*3);
+  for(var i=0;i<posAttr.count;i++){
+    var x=posAttr.getX(i), z=posAttr.getZ(i);
+    var ts=terrainSample(track,x,z);
+    posAttr.setY(i, ts.y);
+    colors[i*3]=ts.color[0]; colors[i*3+1]=ts.color[1]; colors[i*3+2]=ts.color[2];
+  }
+  posAttr.needsUpdate=true;
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  var grain=makeGrainTexture();
+  grain.repeat.set(size/6, size/6);
+  var mat=new THREE.MeshStandardMaterial({ vertexColors:true, map:grain, roughness:1, metalness:0 });
+  var mesh=new THREE.Mesh(geo, mat);
+  mesh.receiveShadow=true;
+  return { mesh:mesh, bounds:{ minX:minX,maxX:maxX,minZ:minZ,maxZ:maxZ,cx:cx,cz:cz,size:size } };
+}
+
+function buildRoad(track){
+  var n=track.n, samples=track.samples;
+  var positions=[], uvs=[];
+  for(var i=0;i<n;i++){
+    var s=samples[i];
+    var perp=new THREE.Vector3(-s.tz,0,s.tx).normalize();
+    var bankOffset=Math.sin(s.bank)*ROAD_HALF_WIDTH;
+    var baseSurfaceY = s.y + ROAD_ELEVATION;
+    var leftY=baseSurfaceY+bankOffset;
+    var rightY=baseSurfaceY-bankOffset;
+    var lx=s.x+perp.x*ROAD_HALF_WIDTH, lz=s.z+perp.z*ROAD_HALF_WIDTH;
+    var rx=s.x-perp.x*ROAD_HALF_WIDTH, rz=s.z-perp.z*ROAD_HALF_WIDTH;
+    positions.push(lx,leftY,lz, rx,rightY,rz);
+    var v=s.dist/4.0;
+    uvs.push(0,v, 1,v);
+  }
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions),3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs),2));
+
+  var asphaltIdx=[], gravelIdx=[];
+  for(var i=0;i<n;i++){
+    var j=(i+1)%n;
+    var a=2*i, b=2*i+1, c=2*j, d=2*j+1;
+    var target = samples[i].surface===0 ? asphaltIdx : gravelIdx;
+    target.push(a,b,d, a,d,c);
+  }
+  var indices=asphaltIdx.concat(gravelIdx);
+  geo.setIndex(indices);
+  geo.addGroup(0, asphaltIdx.length, 0);
+  geo.addGroup(asphaltIdx.length, gravelIdx.length, 1);
+  geo.computeVertexNormals();
+
+  var asphaltTex=makeAsphaltTexture();
+  var gravelTex=makeGravelTexture();
+  var asphaltMat=new THREE.MeshStandardMaterial({ map:asphaltTex, roughness:0.92, metalness:0.05, side:THREE.DoubleSide });
+  var gravelMat=new THREE.MeshStandardMaterial({ map:gravelTex, roughness:1.0, side:THREE.DoubleSide });
+  var mesh=new THREE.Mesh(geo, [asphaltMat, gravelMat]);
+  mesh.receiveShadow=true;
+  return mesh;
+}
+
+function buildCurbs(track){
+  var n=track.n, samples=track.samples;
+  var positions=[], colors=[], indices=[];
+  var blockLen=4.0;
+  function addSide(sideSign){
+    var vertsStart = positions.length/3;
+    for(var i=0;i<n;i++){
+      var s=samples[i];
+      var perp=new THREE.Vector3(-s.tz,0,s.tx).normalize();
+      var bankOffset=Math.sin(s.bank)*ROAD_HALF_WIDTH;
+      var edgeY = s.y + ROAD_ELEVATION + sideSign*bankOffset;
+      var innerR=ROAD_HALF_WIDTH;
+      var midR=ROAD_HALF_WIDTH+CURB_WIDTH*0.55;
+      var outerR=ROAD_HALF_WIDTH+CURB_WIDTH;
+      var ix=s.x+perp.x*innerR*sideSign, iz=s.z+perp.z*innerR*sideSign;
+      var mx=s.x+perp.x*midR*sideSign, mz=s.z+perp.z*midR*sideSign;
+      var ox=s.x+perp.x*outerR*sideSign, oz=s.z+perp.z*outerR*sideSign;
+      var innerY=edgeY+0.02, midY=edgeY+0.22, outerY=edgeY+0.05;
+      positions.push(ix,innerY,iz, mx,midY,mz, ox,outerY,oz);
+      var block = Math.floor(s.dist/blockLen)%2;
+      var col = block===0 ? [0.78,0.09,0.07] : [0.90,0.88,0.82];
+      colors.push(col[0],col[1],col[2], col[0],col[1],col[2], col[0],col[1],col[2]);
+    }
+    for(var i=0;i<n;i++){
+      var j=(i+1)%n;
+      var base=vertsStart+i*3, base2=vertsStart+j*3;
+      indices.push(base+0, base+1, base2+1, base+0, base2+1, base2+0);
+      indices.push(base+1, base+2, base2+2, base+1, base2+2, base2+1);
+    }
+  }
+  addSide(1); addSide(-1);
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions),3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors),3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  var mat=new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.55, side:THREE.DoubleSide });
+  var mesh=new THREE.Mesh(geo, mat);
+  mesh.castShadow=true; mesh.receiveShadow=true;
+  return mesh;
+}
+
+function buildDelineators(track){
+  var n=track.n, samples=track.samples;
+  var postGeo=new THREE.CylinderGeometry(0.06,0.08,0.8,6); postGeo.translate(0,0.4,0);
+  var capGeo=new THREE.ConeGeometry(0.1,0.2,6); capGeo.translate(0,0.9,0);
+  var merged=mergeGeometries([postGeo, capGeo]);
+  var step=3;
+  var list=[];
+  for(var i=0;i<n;i+=step){
+    var s=samples[i];
+    var perp=new THREE.Vector3(-s.tz,0,s.tx).normalize();
+    var side = (Math.floor(i/step)%2===0) ? 1 : -1;
+    var r = ROAD_HALF_WIDTH+CURB_WIDTH+0.35;
+    var x=s.x+perp.x*r*side, z=s.z+perp.z*r*side;
+    var bankOffset=Math.sin(s.bank)*ROAD_HALF_WIDTH;
+    var y=s.y+ROAD_ELEVATION+side*bankOffset;
+    list.push({ x:x,y:y,z:z, block: Math.floor(s.dist/4.0)%2 });
+  }
+  var inst=new THREE.InstancedMesh(merged, new THREE.MeshStandardMaterial({ roughness:0.6 }), list.length);
+  var m4=new THREE.Matrix4(), col=new THREE.Color(), q=new THREE.Quaternion();
+  for(var i=0;i<list.length;i++){
+    var p=list[i];
+    m4.compose(new THREE.Vector3(p.x,p.y,p.z), q, new THREE.Vector3(1,1,1));
+    inst.setMatrixAt(i, m4);
+    if(p.block===0) col.setRGB(0.85,0.28,0.05); else col.setRGB(0.92,0.92,0.9);
+    inst.setColorAt(i, col);
+  }
+  inst.instanceMatrix.needsUpdate=true;
+  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
+  inst.castShadow=true;
+  return inst;
+}
+
+function makeTreeGeometry(){
+  var trunk=new THREE.CylinderGeometry(0.05,0.09,1.0,5); trunk.translate(0,0.5,0);
+  var f1=new THREE.ConeGeometry(0.62,1.1,7); f1.translate(0,1.15,0);
+  var f2=new THREE.ConeGeometry(0.48,0.95,7); f2.translate(0,1.75,0);
+  var f3=new THREE.ConeGeometry(0.32,0.8,7); f3.translate(0,2.35,0);
+  return mergeGeometriesWithColors([
+    { geo:trunk, color:[0.30,0.20,0.12] },
+    { geo:f1, color:[0.13,0.30,0.14] },
+    { geo:f2, color:[0.15,0.34,0.16] },
+    { geo:f3, color:[0.18,0.38,0.18] }
+  ]);
+}
+function buildForest(track, bounds){
+  var treeGeo=makeTreeGeometry();
+  var desired=550+Math.floor(Math.random()*300);
+  var maxAttempts=desired*6;
+  var accepted=[];
+  var halfSize=bounds.size/2*0.92;
+  var exclR=ROAD_HALF_WIDTH+CURB_WIDTH+2.5;
+  var attempts=0;
+  while(accepted.length<desired && attempts<maxAttempts){
+    attempts++;
+    var x=bounds.cx+(Math.random()*2-1)*halfSize;
+    var z=bounds.cz+(Math.random()*2-1)*halfSize;
+    var info=closestSampleInfo(track, x, z);
+    if(info.dist<exclR) continue;
+    accepted.push({ x:x, z:z });
+  }
+  var inst=new THREE.InstancedMesh(treeGeo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.9 }), accepted.length);
+  var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), col=new THREE.Color(), euler=new THREE.Euler();
+  for(var i=0;i<accepted.length;i++){
+    var p=accepted[i];
+    var y=terrainSample(track, p.x, p.z).y;
+    euler.set(0, Math.random()*Math.PI*2, 0);
+    q.setFromEuler(euler);
+    var s=0.75+Math.random()*0.9;
+    m4.compose(new THREE.Vector3(p.x,y,p.z), q, new THREE.Vector3(s, s*(0.9+Math.random()*0.3), s));
+    inst.setMatrixAt(i, m4);
+    var tint=0.85+Math.random()*0.3;
+    col.setRGB(tint,tint,tint);
+    inst.setColorAt(i, col);
+  }
+  inst.instanceMatrix.needsUpdate=true;
+  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
+  inst.castShadow=true; inst.receiveShadow=true;
+  return inst;
+}
+
+function buildCarMesh(bodyColorHex, accentColorHex) {
+  var carGroup = new THREE.Group();
+  
+  var bodyGeo = new THREE.BoxGeometry(1.7, 0.5, 3.4);
+  bodyGeo.translate(0, 0.45, 0);
+  var bodyMat = new THREE.MeshStandardMaterial({ color: bodyColorHex, roughness: 0.3, metalness: 0.3 });
+  var bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+  bodyMesh.castShadow = true;
+  carGroup.add(bodyMesh);
+
+  var cabinGeo = new THREE.BoxGeometry(1.35, 0.5, 1.6);
+  cabinGeo.translate(0, 0.88, -0.1);
+  var cabinMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.1, metalness: 0.8 });
+  var cabinMesh = new THREE.Mesh(cabinGeo, cabinMat);
+  cabinMesh.castShadow = true;
+  carGroup.add(cabinMesh);
+
+  var spoilerGeo = new THREE.BoxGeometry(1.6, 0.08, 0.45);
+  spoilerGeo.translate(0, 1.22, -1.5);
+  var accentMat = new THREE.MeshStandardMaterial({ color: accentColorHex, roughness: 0.4 });
+  var spoilerMesh = new THREE.Mesh(spoilerGeo, accentMat);
+  spoilerMesh.castShadow = true;
+  carGroup.add(spoilerMesh);
+
+  var post1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.1), accentMat);
+  post1.position.set(-0.55, 1.05, -1.5);
+  var post2 = post1.clone(); post2.position.x = 0.55;
+  carGroup.add(post1); carGroup.add(post2);
+
+  var wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.25, 16);
+  wheelGeo.rotateZ(Math.PI / 2);
+  var wheelMat = new THREE.MeshStandardMaterial({ color: 0x222225, roughness: 0.8 });
+  var wheelPos = [
+    [-0.85, 0.32, 1.0], [0.85, 0.32, 1.0],
+    [-0.85, 0.32, -1.0], [0.85, 0.32, -1.0]
+  ];
+  for(var i=0; i<4; i++){
+    var wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.position.set(wheelPos[i][0], wheelPos[i][1], wheelPos[i][2]);
+    wheel.castShadow = true;
+    carGroup.add(wheel);
+  }
+
+  var headLightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  var hl1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.1), headLightMat);
+  hl1.position.set(-0.5, 0.52, 1.71);
+  var hl2 = hl1.clone(); hl2.position.x = 0.5;
+  carGroup.add(hl1); carGroup.add(hl2);
+
+  var tailLightMat = new THREE.MeshBasicMaterial({ color: 0xff1100 });
+  var tl1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.1), tailLightMat);
+  tl1.position.set(-0.5, 0.55, -1.71);
+  var tl2 = tl1.clone(); tl2.position.x = 0.5;
+  carGroup.add(tl1); carGroup.add(tl2);
+
+  return carGroup;
+}
+
+/* ---------------------------------------------------------------
+   OHJAIMET, KISA JA KOSKETUSNÄYTTÖ (TOUCH)
+--------------------------------------------------------------- */
+var isRacing = false;
+var isCountdown = false;
+var countdownTimeouts = [];
+
+var numCompetitors = 2;
+var numPlayers = 1;
+var targetLaps = 3;
+var finishCounter = 0;
+
+var stereoActive = false;
+var stereoEyeDist = 0.15;
+var stereoImageOffset = 0;
+
+var playerControlTypes = ['keyboard', 'keyboard', 'keyboard', 'keyboard'];
+var playerNames = ["Pelaaja 1", "Pelaaja 2", "Pelaaja 3", "Pelaaja 4"];
+
+var cars = [];
+
+var keysInput = {
+  p1: { gas:false, brake:false, left:false, right:false },
+  p2: { gas:false, brake:false, left:false, right:false },
+  p3: { gas:false, brake:false, left:false, right:false },
+  p4: { gas:false, brake:false, left:false, right:false }
+};
+
+var touchInputState = [
+  { gas:false, brake:false, left:false, right:false },
+  { gas:false, brake:false, left:false, right:false },
+  { gas:false, brake:false, left:false, right:false },
+  { gas:false, brake:false, left:false, right:false }
+];
+
+var mouseState = {
+  leftDown: false, rightDown: false, xNorm: 0
+};
+
+window.addEventListener('keydown', function(e){
+  var k = e.key.toLowerCase();
+  
+  if(k==='w') keysInput.p1.gas = true;
+  if(k==='s') keysInput.p1.brake = true;
+  if(k==='a') keysInput.p1.left = true;
+  if(k==='d') keysInput.p1.right = true;
+
+  if(k==='arrowup') { keysInput.p2.gas = true; if(isRacing) e.preventDefault(); }
+  if(k==='arrowdown') { keysInput.p2.brake = true; if(isRacing) e.preventDefault(); }
+  if(k==='arrowleft') { keysInput.p2.left = true; if(isRacing) e.preventDefault(); }
+  if(k==='arrowright') { keysInput.p2.right = true; if(isRacing) e.preventDefault(); }
+
+  if(k==='t') keysInput.p3.gas = true;
+  if(k==='g') keysInput.p3.brake = true;
+  if(k==='f') keysInput.p3.left = true;
+  if(k==='h') keysInput.p3.right = true;
+
+  if(k==='i') keysInput.p4.gas = true;
+  if(k==='k') keysInput.p4.brake = true;
+  if(k==='j') keysInput.p4.left = true;
+  if(k==='l') keysInput.p4.right = true;
+});
+
+window.addEventListener('keyup', function(e){
+  var k = e.key.toLowerCase();
+
+  if(k==='w') keysInput.p1.gas = false;
+  if(k==='s') keysInput.p1.brake = false;
+  if(k==='a') keysInput.p1.left = false;
+  if(k==='d') keysInput.p1.right = false;
+
+  if(k==='arrowup') keysInput.p2.gas = false;
+  if(k==='arrowdown') keysInput.p2.brake = false;
+  if(k==='arrowleft') keysInput.p2.left = false;
+  if(k==='arrowright') keysInput.p2.right = false;
+
+  if(k==='t') keysInput.p3.gas = false;
+  if(k==='g') keysInput.p3.brake = false;
+  if(k==='f') keysInput.p3.left = false;
+  if(k==='h') keysInput.p3.right = false;
+
+  if(k==='i') keysInput.p4.gas = false;
+  if(k==='k') keysInput.p4.brake = false;
+  if(k==='j') keysInput.p4.left = false;
+  if(k==='l') keysInput.p4.right = false;
+});
+
+window.addEventListener('mousedown', function(e){
+  if(!isRacing) return;
+  if(e.button === 0) mouseState.leftDown = true;
+  if(e.button === 2) mouseState.rightDown = true;
+});
+window.addEventListener('mouseup', function(e){
+  if(e.button === 0) mouseState.leftDown = false;
+  if(e.button === 2) mouseState.rightDown = false;
+});
+window.addEventListener('mousemove', function(e){
+  var cx = innerWidth / 2;
+  mouseState.xNorm = (e.clientX - cx) / cx;
+});
+window.addEventListener('contextmenu', function(e){
+  if(isRacing) e.preventDefault();
+});
+
+document.getElementById('btPairBtn').addEventListener('click', function(){
+  if(navigator.bluetooth && navigator.bluetooth.requestDevice) {
+    navigator.bluetooth.requestDevice({ acceptAllDevices: true })
+      .then(function(device) {
+        alert("📶 Bluetooth-laite valittu: " + (device.name || "Tuntematon laite"));
+      })
+      .catch(function(err) {
+        alert("Bluetooth-yhdistäminen peruutettiin tai ei tuettu: " + err);
+      });
+  } else {
+    alert("⚠️ Liitä Bluetooth-näppäimistö, gamepad tai hiiri laitteesi asetuksista, niin peli tunnistaa sen automaattisesti!");
+  }
+});
+
+/* STEREO 3D PANIKKEET JA SÄÄTIMET */
+var stereoBtn = document.getElementById('stereoBtn');
+var stereoControls = document.getElementById('stereoControls');
+var eyeDistSlider = document.getElementById('eyeDistSlider');
+var eyeDistVal = document.getElementById('eyeDistVal');
+var imgOffsetSlider = document.getElementById('imgOffsetSlider');
+var imgOffsetVal = document.getElementById('imgOffsetVal');
+
+stereoBtn.addEventListener('click', function(){
+  stereoActive = !stereoActive;
+  stereoBtn.classList.toggle('active', stereoActive);
+  stereoControls.style.display = stereoActive ? 'block' : 'none';
+});
+
+eyeDistSlider.addEventListener('input', function(e){
+  stereoEyeDist = parseFloat(e.target.value) || 0.15;
+  eyeDistVal.innerText = stereoEyeDist.toFixed(2) + "m";
+});
+
+imgOffsetSlider.addEventListener('input', function(e){
+  stereoImageOffset = parseInt(e.target.value) || 0;
+  imgOffsetVal.innerText = stereoImageOffset + "px";
+});
+
+/* KOSKETUSNÄYTÖN VIRTUAALINAPPIEN SIDONTA */
+function bindTouchBtn(btnEl, playerIdx, action) {
+  function setAction(active, e) {
+    if(e) e.preventDefault();
+    touchInputState[playerIdx][action] = active;
+    btnEl.classList.toggle('active', active);
+  }
+  btnEl.addEventListener('pointerdown', function(e){ setAction(true, e); try { btnEl.setPointerCapture(e.pointerId); } catch(err){} });
+  btnEl.addEventListener('pointerup', function(e){ setAction(false, e); });
+  btnEl.addEventListener('pointercancel', function(e){ setAction(false, e); });
+  btnEl.addEventListener('pointerleave', function(e){ setAction(false, e); });
+}
+
+// Sidotaan kaikkien 4 pelaajan mahdolliset virtuaalinapit
+for(var i = 0; i < 4; i++) {
+  var pContainer = document.getElementById('touchP' + (i + 1));
+  if(pContainer) {
+    bindTouchBtn(pContainer.querySelector('.btn-left'), i, 'left');
+    bindTouchBtn(pContainer.querySelector('.btn-right'), i, 'right');
+    bindTouchBtn(pContainer.querySelector('.btn-brake'), i, 'brake');
+    bindTouchBtn(pContainer.querySelector('.btn-gas'), i, 'gas');
+  }
+}
+
+function getGamepadInputs(gpIndex) {
+  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  var gp = gamepads[gpIndex];
+  if(!gp) return { gas:false, brake:false, left:false, right:false };
+
+  var steerAxis = gp.axes[0] || 0;
+  var gasButton = (gp.buttons[7] && gp.buttons[7].value > 0.1) || (gp.buttons[0] && gp.buttons[0].pressed);
+  var brakeButton = (gp.buttons[6] && gp.buttons[6].value > 0.1) || (gp.buttons[1] && gp.buttons[1].pressed);
+
+  var dLeft = gp.buttons[14] && gp.buttons[14].pressed;
+  var dRight = gp.buttons[15] && gp.buttons[15].pressed;
+
+  return {
+    gas: !!gasButton,
+    brake: !!brakeButton,
+    left: steerAxis < -0.2 || dLeft,
+    right: steerAxis > 0.2 || dRight
+  };
+}
+
+function getPlayerControls(playerIndex) {
+  var ctrlType = playerControlTypes[playerIndex] || 'keyboard';
+
+  if(ctrlType === 'touch') {
+    return touchInputState[playerIndex];
+  } else if(ctrlType === 'keyboard') {
+    if(playerIndex === 0) {
+      if(numPlayers === 1) {
+        return {
+          gas: keysInput.p1.gas || keysInput.p2.gas,
+          brake: keysInput.p1.brake || keysInput.p2.brake,
+          left: keysInput.p1.left || keysInput.p2.left,
+          right: keysInput.p1.right || keysInput.p2.right
+        };
+      }
+      return keysInput.p1;
+    }
+    if(playerIndex === 1) return keysInput.p2;
+    if(playerIndex === 2) return keysInput.p3;
+    if(playerIndex === 3) return keysInput.p4;
+  } else if(ctrlType.indexOf('gamepad') === 0) {
+    var gpIdx = parseInt(ctrlType.replace('gamepad', '')) || 0;
+    return getGamepadInputs(gpIdx);
+  } else if(ctrlType === 'mouse') {
+    return {
+      gas: mouseState.leftDown,
+      brake: mouseState.rightDown,
+      left: mouseState.xNorm < -0.12,
+      right: mouseState.xNorm > 0.12
+    };
+  } else if(ctrlType === 'bluetooth') {
+    return getGamepadInputs(playerIndex);
+  }
+
+  return { gas:false, brake:false, left:false, right:false };
+}
+
+var compInput = document.getElementById('numCompetitors');
+var playInput = document.getElementById('numPlayers');
+var lapsInput = document.getElementById('numLaps');
+
+lapsInput.addEventListener('change', function(){
+  var val = parseInt(lapsInput.value) || 1;
+  targetLaps = THREE.MathUtils.clamp(val, 1, 20);
+  lapsInput.value = targetLaps;
+});
+
+function renderPlayerControlSelectors() {
+  var container = document.getElementById('playerControlsConfig');
+  var html = "";
+
+  var defaultKbLabels = ["WASD", "Nuolet", "TFGH", "IJKL"];
+
+  for(var i = 0; i < numPlayers; i++) {
+    var pNum = i + 1;
+    var currentType = playerControlTypes[i] || 'keyboard';
+    var currentName = playerNames[i] || ("Pelaaja " + pNum);
+
+    html += '<div class="ctrl-card">';
+    html += '<div class="ctrl-group">';
+    html += '<label>✏️ Pelaajan ' + pNum + ' nimi:</label>';
+    html += '<input type="text" class="player-name-input" data-player="' + i + '" value="' + currentName + '" maxlength="14">';
+    html += '</div>';
+
+    html += '<div class="ctrl-group">';
+    html += '<label>🎮 Ohjain:</label>';
+    html += '<select class="ctrl-select" data-player="' + i + '">';
+    html += '<option value="keyboard"' + (currentType === 'keyboard' ? ' selected' : '') + '>⌨️ Näppäimistö (' + defaultKbLabels[i] + ')</option>';
+    html += '<option value="touch"' + (currentType === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö (Virtuaalinapit)</option>';
+    html += '<option value="gamepad0"' + (currentType === 'gamepad0' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 1</option>';
+    html += '<option value="gamepad1"' + (currentType === 'gamepad1' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 2</option>';
+    html += '<option value="gamepad2"' + (currentType === 'gamepad2' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 3</option>';
+    html += '<option value="gamepad3"' + (currentType === 'gamepad3' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 4</option>';
+    html += '<option value="mouse"' + (currentType === 'mouse' ? ' selected' : '') + '>🖱️ Hiiri (Klikkaus & liike)</option>';
+    html += '<option value="bluetooth"' + (currentType === 'bluetooth' ? ' selected' : '') + '>📶 Erillinen Bluetooth-laite</option>';
+    html += '</select>';
+    html += '</div>';
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+
+  var nameInputs = container.querySelectorAll('.player-name-input');
+  nameInputs.forEach(function(inp) {
+    inp.addEventListener('input', function(e) {
+      var pIdx = parseInt(e.target.getAttribute('data-player'));
+      playerNames[pIdx] = e.target.value;
+    });
+  });
+
+  var selects = container.querySelectorAll('.ctrl-select');
+  selects.forEach(function(sel) {
+    sel.addEventListener('change', function(e) {
+      var pIdx = parseInt(e.target.getAttribute('data-player'));
+      playerControlTypes[pIdx] = e.target.value;
+    });
+  });
+}
+
+compInput.addEventListener('change', function(){
+  var val = parseInt(compInput.value) || 1;
+  numCompetitors = THREE.MathUtils.clamp(val, 1, 8);
+  compInput.value = numCompetitors;
+  if(numPlayers > numCompetitors) {
+    numPlayers = numCompetitors;
+    playInput.value = numPlayers;
+    renderPlayerControlSelectors();
+  }
+});
+
+playInput.addEventListener('change', function(){
+  var val = parseInt(playInput.value) || 1;
+  numPlayers = THREE.MathUtils.clamp(val, 1, 4);
+  playInput.value = numPlayers;
+  if(numCompetitors < numPlayers) {
+    numCompetitors = numPlayers;
+    compInput.value = numCompetitors;
+  }
+  
+  if(numPlayers === 1) {
+    stereoBtn.style.display = 'block';
+  } else {
+    stereoBtn.style.display = 'none';
+    stereoActive = false;
+    stereoBtn.classList.remove('active');
+    stereoControls.style.display = 'none';
+  }
+
+  renderPlayerControlSelectors();
+});
+
+renderPlayerControlSelectors();
+
+function createCars() {
+  for(var i = 0; i < cars.length; i++) {
+    if(cars[i].mesh) scene.remove(cars[i].mesh);
+  }
+  cars = [];
+
+  var aiCounter = 1;
+
+  for(var i = 0; i < numCompetitors; i++) {
+    var palette = CAR_PALETTES[i];
+    var isPlayerCar = (i < numPlayers);
+
+    var carName = "";
+    if(isPlayerCar) {
+      carName = (playerNames[i] && playerNames[i].trim() !== "") ? playerNames[i].trim() : ("Pelaaja " + (i + 1));
+    } else {
+      carName = "Tietokone " + aiCounter;
+      aiCounter++;
+    }
+
+    var mesh = buildCarMesh(palette.color, palette.accent);
+    scene.add(mesh);
+
+    cars.push({
+      id: i,
+      name: carName,
+      colorHex: palette.color,
+      colorCss: palette.hexCss,
+      isHuman: isPlayerCar,
+      playerNum: isPlayerCar ? (i + 1) : 0,
+      mesh: mesh,
+      x: 0, y: 0, z: 0, angle: 0, speed: 0,
+      progress: 0, prevProgress: 0, totalDist: 0,
+      aiSpeed: 16.5 + Math.random() * 3.5,
+      laps: 0, currentLapTime: 0, bestLapTime: null,
+      lastSampleIdx: 0, passedMidpoint: false,
+      finished: false, finishRank: 0
+    });
+  }
+}
+
+function positionHuds() {
+  var huds = [
+    document.getElementById('hudP1'),
+    document.getElementById('hudP2'),
+    document.getElementById('hudP3'),
+    document.getElementById('hudP4')
+  ];
+
+  for(var i=0; i<4; i++) huds[i].style.display = 'none';
+
+  if(!isRacing) return;
+
+  if(numPlayers === 1) {
+    huds[0].style.display = 'block';
+    huds[0].style.top = '18px'; huds[0].style.right = '18px';
+    huds[0].style.bottom = 'auto'; huds[0].style.left = 'auto';
+  } else if(numPlayers === 2) {
+    huds[0].style.display = 'block';
+    huds[0].style.top = '18px'; huds[0].style.right = '18px';
+    huds[0].style.bottom = 'auto'; huds[0].style.left = 'auto';
+
+    huds[1].style.display = 'block';
+    huds[1].style.bottom = '18px'; huds[1].style.right = '18px';
+    huds[1].style.top = 'auto'; huds[1].style.left = 'auto';
+  } else if(numPlayers === 3) {
+    huds[0].style.display = 'block';
+    huds[0].style.top = '18px'; huds[0].style.left = 'calc(50% - 188px)';
+    huds[0].style.bottom = 'auto'; huds[0].style.right = 'auto';
+
+    huds[1].style.display = 'block';
+    huds[1].style.top = '18px'; huds[1].style.right = '18px';
+    huds[1].style.bottom = 'auto'; huds[1].style.left = 'auto';
+
+    huds[2].style.display = 'block';
+    huds[2].style.bottom = '18px'; huds[2].style.right = '18px';
+    huds[2].style.top = 'auto'; huds[2].style.left = 'auto';
+  } else if(numPlayers === 4) {
+    huds[0].style.display = 'block';
+    huds[0].style.top = '18px'; huds[0].style.left = 'calc(50% - 188px)';
+    huds[0].style.bottom = 'auto'; huds[0].style.right = 'auto';
+
+    huds[1].style.display = 'block';
+    huds[1].style.top = '18px'; huds[1].style.right = '18px';
+    huds[1].style.bottom = 'auto'; huds[1].style.left = 'auto';
+
+    huds[2].style.display = 'block';
+    huds[2].style.bottom = '18px'; huds[2].style.left = 'calc(50% - 188px)';
+    huds[2].style.top = 'auto'; huds[2].style.right = 'auto';
+
+    huds[3].style.display = 'block';
+    huds[3].style.bottom = '18px'; huds[3].style.right = '18px';
+    huds[3].style.top = 'auto'; huds[3].style.left = 'auto';
+  }
+}
+
+function positionTouchControls() {
+  var tContainers = [
+    document.getElementById('touchP1'),
+    document.getElementById('touchP2'),
+    document.getElementById('touchP3'),
+    document.getElementById('touchP4')
+  ];
+
+  for(var i=0; i<4; i++) tContainers[i].style.display = 'none';
+
+  if(!isRacing) return;
+
+  for(var i = 0; i < numPlayers; i++) {
+    if(playerControlTypes[i] === 'touch' && !cars[i].finished) {
+      var el = tContainers[i];
+      el.style.display = 'block';
+
+      if(numPlayers === 1) {
+        el.style.top = '0'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '100%';
+      } else if(numPlayers === 2) {
+        if(i === 0) { el.style.top = '0'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '50%'; }
+        else { el.style.top = '50%'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '50%'; }
+      } else if(numPlayers === 3) {
+        if(i === 0) { el.style.top = '0'; el.style.left = '0'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 1) { el.style.top = '0'; el.style.left = '50%'; el.style.width = '50%'; el.style.height = '50%'; }
+        else { el.style.top = '50%'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '50%'; }
+      } else if(numPlayers === 4) {
+        if(i === 0) { el.style.top = '0'; el.style.left = '0'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 1) { el.style.top = '0'; el.style.left = '50%'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 2) { el.style.top = '50%'; el.style.left = '0'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 3) { el.style.top = '50%'; el.style.left = '50%'; el.style.width = '50%'; el.style.height = '50%'; }
+      }
+    }
+  }
+}
+
+function updateHudUI() {
+  var pIcons = ['🔴', '🟢', '🟡', '🟣'];
+
+  for(var i = 0; i < numPlayers; i++) {
+    var c = cars[i];
+    var pNum = i + 1;
+    var hudBox = document.getElementById('hudP' + pNum);
+    if (!hudBox) continue;
+
+    if (c) {
+      var html = '<h3 style="color:' + CAR_PALETTES[i].hexCss + ';">' + pIcons[i] + ' ' + c.name + '</h3>';
+      if (c.finished) {
+        html += '<div style="font-size:0.85rem; font-weight:800; color:#28a745; margin:4px 0;">🏁 MAALISSA!</div>';
+        html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#d4611f;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
+        html += '<div class="hud-row"><span>Paras aika:</span><span class="hud-val">' + formatTime(c.bestLapTime) + '</span></div>';
+      } else {
+        html += '<div class="hud-row"><span>Kierros:</span><span class="hud-val">' + c.laps + ' / ' + targetLaps + '</span></div>';
+        html += '<div class="hud-row"><span>Aika:</span><span class="hud-val">' + formatTime(c.currentLapTime) + '</span></div>';
+        html += '<div class="hud-row"><span>Paras:</span><span class="hud-val">' + formatTime(c.bestLapTime) + '</span></div>';
+      }
+      hudBox.innerHTML = html;
+    }
+  }
+
+  var sorted = cars.slice().sort(function(a, b){
+    if (a.finished && b.finished) return a.finishRank - b.finishRank;
+    if (a.finished) return -1;
+    if (b.finished) return 1;
+    return b.totalDist - a.totalDist;
+  });
+
+  var lb = document.getElementById('leaderboardBar');
+  var htmlLb = "";
+
+  for(var i = 0; i < sorted.length; i++) {
+    var car = sorted[i];
+    var pos = i + 1;
+    var statusIcon = car.finished ? ' 🏁' : '';
+    htmlLb += '<div class="lb-item">';
+    htmlLb += '<span>' + pos + '.</span>';
+    htmlLb += '<span class="lb-badge" style="background:' + car.colorCss + ';"></span>';
+    htmlLb += '<span>' + car.name + statusIcon + '</span>';
+    htmlLb += '</div>';
+  }
+  lb.innerHTML = htmlLb;
+}
+
+function clearCountdownTimeouts() {
+  for(var i = 0; i < countdownTimeouts.length; i++) {
+    clearTimeout(countdownTimeouts[i]);
+  }
+  countdownTimeouts = [];
+}
+
+function startCountdown() {
+  var overlay = document.getElementById('countdownOverlay');
+  overlay.style.display = 'flex';
+  isCountdown = true;
+
+  var steps = [
+    { text: '3', color: '#ffc107', delay: 0 },
+    { text: '2', color: '#ff9800', delay: 1000 },
+    { text: '1', color: '#f44336', delay: 2000 },
+    { text: 'GO!', color: '#28a745', delay: 3000 }
+  ];
+
+  clearCountdownTimeouts();
+
+  steps.forEach(function(s) {
+    var t = setTimeout(function() {
+      if (!isRacing) return;
+      overlay.textContent = s.text;
+      overlay.style.color = s.color;
+      overlay.classList.remove('countdown-pop');
+      void overlay.offsetWidth;
+      overlay.classList.add('countdown-pop');
+
+      if (s.text === 'GO!') {
+        isCountdown = false;
+      }
+    }, s.delay);
+    countdownTimeouts.push(t);
+  });
+
+  var hideT = setTimeout(function() {
+    overlay.style.display = 'none';
+  }, 4000);
+  countdownTimeouts.push(hideT);
+}
+
+function initRace(){
+  if(!currentTrack) return;
+
+  finishCounter = 0;
+  createCars();
+
+  var s0 = currentTrack.samples[0];
+  var s1 = currentTrack.samples[1];
+  var dir = new THREE.Vector3(s1.x - s0.x, 0, s1.z - s0.z).normalize();
+  var startAngle = Math.atan2(dir.x, dir.z);
+  var perp = new THREE.Vector3(-dir.z, 0, dir.x);
+
+  for(var i = 0; i < cars.length; i++) {
+    var c = cars[i];
+    var row = Math.floor(i / 2);
+    var colSign = (i % 2 === 0) ? 1 : -1;
+
+    var sampleOffsetIdx = (currentTrack.n - row * 7 + currentTrack.n) % currentTrack.n;
+    var samplePoint = currentTrack.samples[sampleOffsetIdx];
+
+    c.x = samplePoint.x + perp.x * (1.6 * colSign);
+    c.z = samplePoint.z + perp.z * (1.6 * colSign);
+    c.y = getRoadSurfaceHeight(currentTrack, c.x, c.z);
+    c.angle = startAngle;
+    c.speed = 0;
+    c.progress = sampleOffsetIdx / currentTrack.n;
+    c.prevProgress = c.progress;
+    c.totalDist = 0;
+    c.laps = 0;
+    c.currentLapTime = 0;
+    c.bestLapTime = null;
+    c.lastSampleIdx = sampleOffsetIdx;
+    c.passedMidpoint = false;
+    c.finished = false;
+    c.finishRank = 0;
+
+    c.mesh.position.set(c.x, c.y, c.z);
+    c.mesh.rotation.y = c.angle;
+    c.mesh.visible = true;
+  }
+
+  isRacing = true;
+  flyActive = false;
+  controls.autoRotate = false;
+
+  document.getElementById('rotateBtn').classList.remove('active');
+  document.getElementById('flyBtn').classList.remove('active');
+  document.getElementById('raceBtn').classList.add('active');
+
+  document.getElementById('ui').style.display = 'none';
+
+  document.getElementById('exitRaceBtn').style.display = 'flex';
+  document.getElementById('leaderboardBar').style.display = 'flex';
+
+  var dH = document.getElementById('dividerH');
+  var dV = document.getElementById('dividerV');
+  var dVTop = document.getElementById('dividerVTop');
+
+  dH.style.display = (numPlayers >= 2) ? 'block' : 'none';
+  dV.style.display = (numPlayers === 4) ? 'block' : 'none';
+  dVTop.style.display = (numPlayers === 3) ? 'block' : 'none';
+
+  positionHuds();
+  positionTouchControls();
+  updateHudUI();
+  startCountdown();
+}
+
+function stopRace(){
+  isRacing = false;
+  isCountdown = false;
+  clearCountdownTimeouts();
+
+  document.getElementById('countdownOverlay').style.display = 'none';
+  document.getElementById('dividerH').style.display = 'none';
+  document.getElementById('dividerV').style.display = 'none';
+  document.getElementById('dividerVTop').style.display = 'none';
+  document.getElementById('exitRaceBtn').style.display = 'none';
+  document.getElementById('leaderboardBar').style.display = 'none';
+
+  document.getElementById('ui').style.display = 'block';
+
+  for(var i = 0; i < cars.length; i++) {
+    if(cars[i].mesh) cars[i].mesh.visible = false;
+  }
+
+  // Nollataan kosketusohjaimet
+  for(var i=0; i<4; i++) {
+    touchInputState[i] = { gas:false, brake:false, left:false, right:false };
+  }
+
+  positionHuds();
+  positionTouchControls();
+  document.getElementById('raceBtn').classList.remove('active');
+
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, innerWidth, innerHeight);
+}
+
+document.getElementById('exitRaceBtn').addEventListener('click', stopRace);
+
+function updatePhysics(delta){
+  if(!isRacing || !currentTrack) return;
+
+  var n = currentTrack.n;
+
+  if (isCountdown) {
+    for(var i = 0; i < cars.length; i++) {
+      var c = cars[i];
+      c.mesh.position.set(c.x, c.y, c.z);
+      c.mesh.rotation.y = c.angle;
+    }
+    updateCameras();
+    return;
+  }
+
+  // --- AUTOJEN PÄIVITYS ---
+  for(var i = 0; i < cars.length; i++) {
+    var c = cars[i];
+
+    if (c.finished) continue;
+
+    if(c.isHuman) {
+      var inp = getPlayerControls(i);
+      var accel = 26.0, brake = 32.0, friction = 4.5, maxSpeed = 38.0;
+
+      if(inp.gas) c.speed += accel * delta;
+      else if(inp.brake) c.speed -= brake * delta;
+      else {
+        if(c.speed > 0) c.speed = Math.max(0, c.speed - friction * delta);
+        else if(c.speed < 0) c.speed = Math.min(0, c.speed + friction * delta);
+      }
+
+      c.speed = THREE.MathUtils.clamp(c.speed, -12, maxSpeed);
+
+      var turnSpeed = 2.3;
+      if(Math.abs(c.speed) > 0.5) {
+        var dirFactor = c.speed > 0 ? 1 : -1;
+        if(inp.left) c.angle += turnSpeed * delta * dirFactor;
+        if(inp.right) c.angle -= turnSpeed * delta * dirFactor;
+      }
+
+      var nextX = c.x + Math.sin(c.angle) * c.speed * delta;
+      var nextZ = c.z + Math.cos(c.angle) * c.speed * delta;
+
+      var trackInfo = closestSampleInfo(currentTrack, nextX, nextZ);
+      var maxLatDistance = ROAD_HALF_WIDTH + CURB_WIDTH - 0.45;
+
+      if(Math.abs(trackInfo.latDist) > maxLatDistance) {
+        var sign = trackInfo.latDist > 0 ? 1 : -1;
+        var s = trackInfo.sample;
+        var perpX = -s.tz, perpZ = s.tx;
+
+        nextX = s.x + perpX * (maxLatDistance * sign);
+        nextZ = s.z + perpZ * (maxLatDistance * sign);
+        c.speed *= 0.6;
+      }
+
+      c.x = nextX;
+      c.z = nextZ;
+      c.y = getRoadSurfaceHeight(currentTrack, c.x, c.z);
+
+      c.mesh.position.set(c.x, c.y, c.z);
+      c.mesh.rotation.y = c.angle;
+
+      c.currentLapTime += delta;
+      var currentSampleIdx = trackInfo.sampleIndex;
+
+      if(currentSampleIdx > n * 0.4 && currentSampleIdx < n * 0.6) {
+        c.passedMidpoint = true;
+      }
+
+      if(c.lastSampleIdx > n - 25 && currentSampleIdx < 25 && c.passedMidpoint) {
+        c.laps++;
+        if(c.bestLapTime === null || c.currentLapTime < c.bestLapTime) {
+          c.bestLapTime = c.currentLapTime;
+        }
+        c.currentLapTime = 0;
+        c.passedMidpoint = false;
+
+        if(c.laps >= targetLaps) {
+          c.finished = true;
+          c.finishRank = ++finishCounter;
+          c.mesh.visible = false;
+          positionTouchControls(); // Piilotetaan maaliintulleen pelaajan kosketusnäppäimet
+        }
+      }
+      c.lastSampleIdx = currentSampleIdx;
+      c.totalDist = c.laps * currentTrack.totalLength + (currentSampleIdx / n) * currentTrack.totalLength;
+
+    } else {
+      // TEKOÄLY-AUTOT
+      var trackLen = currentTrack.totalLength;
+      c.progress += (c.aiSpeed * delta) / trackLen;
+      if(c.progress > 1) c.progress -= 1;
+
+      var aiPos = currentTrack.curve3D.getPointAt(c.progress);
+      var aiLook = currentTrack.curve3D.getPointAt((c.progress + 0.005) % 1);
+
+      var aiDir = new THREE.Vector3().subVectors(aiLook, aiPos).normalize();
+      var aiPerp = new THREE.Vector3(-aiDir.z, 0, aiDir.x);
+      
+      var laneOffset = (c.id % 2 === 0 ? 1.5 : -1.5);
+      aiPos.addScaledVector(aiPerp, laneOffset);
+
+      c.x = aiPos.x;
+      c.z = aiPos.z;
+      c.y = getRoadSurfaceHeight(currentTrack, c.x, c.z);
+      c.angle = Math.atan2(aiDir.x, aiDir.z);
+
+      c.mesh.position.set(c.x, c.y, c.z);
+      c.mesh.lookAt(aiLook.x + aiPerp.x*laneOffset, c.y, aiLook.z + aiPerp.z*laneOffset);
+
+      c.currentLapTime += delta;
+      if(c.progress > 0.4 && c.progress < 0.6) {
+        c.passedMidpoint = true;
+      }
+      if(c.prevProgress > 0.85 && c.progress < 0.15 && c.passedMidpoint) {
+        c.laps++;
+        if(c.bestLapTime === null || c.currentLapTime < c.bestLapTime) {
+          c.bestLapTime = c.currentLapTime;
+        }
+        c.currentLapTime = 0;
+        c.passedMidpoint = false;
+
+        if(c.laps >= targetLaps) {
+          c.finished = true;
+          c.finishRank = ++finishCounter;
+          c.mesh.visible = false;
+        }
+      }
+      c.prevProgress = c.progress;
+      c.totalDist = c.laps * currentTrack.totalLength + c.progress * currentTrack.totalLength;
+    }
+  }
+
+  // TÖRMÄYKSET AKTIIVISILLE AUTOILLE
+  for(var i = 0; i < cars.length; i++) {
+    for(var j = i + 1; j < cars.length; j++) {
+      var c1 = cars[i], c2 = cars[j];
+      if(c1.finished || c2.finished) continue;
+
+      var dx = c1.x - c2.x;
+      var dz = c1.z - c2.z;
+      var dist = Math.sqrt(dx*dx + dz*dz);
+      var minDist = 2.2;
+
+      if(dist < minDist && dist > 0.001) {
+        var overlap = (minDist - dist) * 0.5;
+        var nx = dx / dist, nz = dz / dist;
+
+        if(c1.isHuman) {
+          c1.x += nx * overlap; c1.z += nz * overlap; c1.speed *= 0.7;
+        }
+        if(c2.isHuman) {
+          c2.x -= nx * overlap; c2.z -= nz * overlap; c2.speed *= 0.7;
+        }
+      }
+    }
+  }
+
+  updateHudUI();
+  updateCameras();
+}
+
+function updateCameras() {
+  var camDist = 8.5, camHeight = 3.2;
+  var cams = [camera, camera2, camera3, camera4];
+
+  for(var i = 0; i < numPlayers; i++) {
+    if(cars.length > i) {
+      var p = cars[i];
+      var cam = cams[i];
+
+      var targetCamX = p.x - Math.sin(p.angle) * camDist;
+      var targetCamZ = p.z - Math.cos(p.angle) * camDist;
+      var targetCamY = p.y + camHeight;
+
+      cam.position.x = lerp(cam.position.x, targetCamX, 0.12);
+      cam.position.y = lerp(cam.position.y, targetCamY, 0.12);
+      cam.position.z = lerp(cam.position.z, targetCamZ, 0.12);
+
+      cam.lookAt(
+        p.x + Math.sin(p.angle) * 4,
+        p.y + 1.2,
+        p.z + Math.cos(p.angle) * 4
+      );
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   GENEROINTI JA HALLINTA
+--------------------------------------------------------------- */
+var currentTrack=null, terrainInfo=null;
+var terrainMesh=null, roadMesh=null, curbMesh=null, postMesh=null, forestMesh=null, finishLineMesh=null;
+var treesVisible=true, curbsVisible=true;
+
+function disposeMesh(m){
+  if(!m) return;
+  if(m.geometry) m.geometry.dispose();
+  scene.remove(m);
+}
+
+function regenerateAll(){
+  stopRace();
+  noiseSeed = Math.random()*10000;
+  currentHillAmp = 5.5 + Math.random()*6.5;
+
+  disposeMesh(terrainMesh); disposeMesh(roadMesh); disposeMesh(curbMesh);
+  disposeMesh(postMesh); disposeMesh(forestMesh); disposeMesh(finishLineMesh);
+
+  var track = buildTrackPath();
+  currentTrack = track;
+
+  var terr = buildTerrain(track);
+  terrainMesh = terr.mesh; terrainInfo = terr.bounds;
+  scene.add(terrainMesh);
+
+  roadMesh = buildRoad(track); scene.add(roadMesh);
+  curbMesh = buildCurbs(track); scene.add(curbMesh);
+  postMesh = buildDelineators(track); scene.add(postMesh);
+  forestMesh = buildForest(track, terrainInfo); scene.add(forestMesh);
+  finishLineMesh = buildFinishLine(track); scene.add(finishLineMesh);
+
+  curbMesh.visible = curbsVisible;
+  postMesh.visible = curbsVisible;
+  forestMesh.visible = treesVisible;
+
+  var avgY=0;
+  for(var i=0;i<track.n;i++) avgY += track.samples[i].y;
+  avgY /= track.n;
+  var midX=(terrainInfo.minX+terrainInfo.maxX)/2, midZ=(terrainInfo.minZ+terrainInfo.maxZ)/2;
+  controls.target.set(midX, avgY+2, midZ);
+  controls.setDistance(Math.max(60, terrainInfo.size*0.55));
+
+  sun.target.position.set(midX, avgY, midZ);
+  sun.position.set(midX+60, avgY+90, midZ+40);
+}
+
+/* ---------------------------------------------------------------
+   UI-TAPAHTUMAT
+--------------------------------------------------------------- */
+document.getElementById('regenBtn').addEventListener('click', regenerateAll);
+
+document.getElementById('raceBtn').addEventListener('click', function(){
+  if(isRacing) stopRace(); else initRace();
+});
+
+var autoRotate=false;
+document.getElementById('rotateBtn').addEventListener('click', function(e){
+  if(isRacing) stopRace();
+  autoRotate=!autoRotate;
+  controls.autoRotate=autoRotate;
+  e.target.classList.toggle('active', autoRotate);
+});
+
+document.getElementById('treesBtn').addEventListener('click', function(e){
+  treesVisible=!treesVisible;
+  if(forestMesh) forestMesh.visible=treesVisible;
+  e.target.classList.toggle('active', treesVisible);
+});
+
+document.getElementById('curbBtn').addEventListener('click', function(e){
+  curbsVisible=!curbsVisible;
+  if(curbMesh) curbMesh.visible=curbsVisible;
+  if(postMesh) postMesh.visible=curbsVisible;
+  e.target.classList.toggle('active', curbsVisible);
+});
+
+var flyActive=false, flyT=0;
+document.getElementById('flyBtn').addEventListener('click', function(e){
+  if(isRacing) stopRace();
+  flyActive=!flyActive;
+  if(flyActive){ autoRotate=false; controls.autoRotate=false; document.getElementById('rotateBtn').classList.remove('active'); }
+  e.target.classList.toggle('active', flyActive);
+});
+
+/* ---------------------------------------------------------------
+   KÄYNNISTYS
+--------------------------------------------------------------- */
+regenerateAll();
+setTimeout(function(){
+  var l=document.getElementById('loading');
+  l.style.opacity='0';
+  setTimeout(function(){ l.remove(); }, 650);
+}, 350);
+
+/* ---------------------------------------------------------------
+   ANIMAATIOSILMUKKA (STEREO 3D & MONIPELIRENDERÖINTI)
+--------------------------------------------------------------- */
+var clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var delta=clock.getDelta();
+
+  var isStereoOn = stereoActive && (numPlayers === 1);
+
+  if(isRacing) {
+    updatePhysics(delta);
+
+    var w = innerWidth;
+    var h = innerHeight;
+
+    if(isStereoOn) {
+      var halfW = Math.floor(w / 2);
+      camRightVec.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+
+      cameraLeft.position.copy(camera.position).addScaledVector(camRightVec, -stereoEyeDist / 2);
+      cameraLeft.quaternion.copy(camera.quaternion);
+
+      cameraRight.position.copy(camera.position).addScaledVector(camRightVec, stereoEyeDist / 2);
+      cameraRight.quaternion.copy(camera.quaternion);
+
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(-stereoImageOffset, 0, halfW, h);
+      renderer.setScissor(0, 0, halfW, h);
+      cameraLeft.aspect = halfW / h; cameraLeft.updateProjectionMatrix();
+      renderer.render(scene, cameraLeft);
+
+      renderer.setViewport(halfW + stereoImageOffset, 0, halfW, h);
+      renderer.setScissor(halfW, 0, halfW, h);
+      cameraRight.aspect = halfW / h; cameraRight.updateProjectionMatrix();
+      renderer.render(scene, cameraRight);
+
+      renderer.setScissorTest(false);
+    } else if(numPlayers === 1) {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+    } else if(numPlayers === 2) {
+      var halfH = Math.floor(h / 2);
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(0, halfH, w, halfH);
+      renderer.setScissor(0, halfH, w, halfH);
+      camera.aspect = w / halfH; camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+
+      renderer.setViewport(0, 0, w, halfH);
+      renderer.setScissor(0, 0, w, halfH);
+      camera2.aspect = w / halfH; camera2.updateProjectionMatrix();
+      renderer.render(scene, camera2);
+
+      renderer.setScissorTest(false);
+    } else if(numPlayers === 3) {
+      var halfW = Math.floor(w / 2);
+      var halfH = Math.floor(h / 2);
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(0, halfH, halfW, halfH);
+      renderer.setScissor(0, halfH, halfW, halfH);
+      camera.aspect = halfW / halfH; camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+
+      renderer.setViewport(halfW, halfH, halfW, halfH);
+      renderer.setScissor(halfW, halfH, halfW, halfH);
+      camera2.aspect = halfW / halfH; camera2.updateProjectionMatrix();
+      renderer.render(scene, camera2);
+
+      renderer.setViewport(0, 0, w, halfH);
+      renderer.setScissor(0, 0, w, halfH);
+      camera3.aspect = w / halfH; camera3.updateProjectionMatrix();
+      renderer.render(scene, camera3);
+
+      renderer.setScissorTest(false);
+    } else if(numPlayers === 4) {
+      var halfW = Math.floor(w / 2);
+      var halfH = Math.floor(h / 2);
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(0, halfH, halfW, halfH);
+      renderer.setScissor(0, halfH, halfW, halfH);
+      camera.aspect = halfW / halfH; camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+
+      renderer.setViewport(halfW, halfH, halfW, halfH);
+      renderer.setScissor(halfW, halfH, halfW, halfH);
+      camera2.aspect = halfW / halfH; camera2.updateProjectionMatrix();
+      renderer.render(scene, camera2);
+
+      renderer.setViewport(0, 0, halfW, halfH);
+      renderer.setScissor(0, 0, halfW, halfH);
+      camera3.aspect = halfW / halfH; camera3.updateProjectionMatrix();
+      renderer.render(scene, camera3);
+
+      renderer.setViewport(halfW, 0, halfW, halfH);
+      renderer.setScissor(halfW, 0, halfW, halfH);
+      camera4.aspect = halfW / halfH; camera4.updateProjectionMatrix();
+      renderer.render(scene, camera4);
+
+      renderer.setScissorTest(false);
+    }
+  } else if(flyActive && currentTrack){
+    var speed = 0.025;
+    flyT = (flyT + delta * speed) % 1.0;
+    
+    var pos = currentTrack.curve3D.getPointAt(flyT);
+    var look = currentTrack.curve3D.getPointAt((flyT + 0.015) % 1.0);
+    
+    camera.position.set(pos.x, pos.y + 1.8, pos.z);
+    camera.lookAt(look.x, look.y + 1.4, look.z);
+
+    if(isStereoOn) {
+      var w = innerWidth, h = innerHeight;
+      var halfW = Math.floor(w / 2);
+      camRightVec.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+
+      cameraLeft.position.copy(camera.position).addScaledVector(camRightVec, -stereoEyeDist / 2);
+      cameraLeft.quaternion.copy(camera.quaternion);
+
+      cameraRight.position.copy(camera.position).addScaledVector(camRightVec, stereoEyeDist / 2);
+      cameraRight.quaternion.copy(camera.quaternion);
+
+      renderer.setScissorTest(true);
+      renderer.setViewport(-stereoImageOffset, 0, halfW, h);
+      renderer.setScissor(0, 0, halfW, h);
+      cameraLeft.aspect = halfW / h; cameraLeft.updateProjectionMatrix();
+      renderer.render(scene, cameraLeft);
+
+      renderer.setViewport(halfW + stereoImageOffset, 0, halfW, h);
+      renderer.setScissor(halfW, 0, halfW, h);
+      cameraRight.aspect = halfW / h; cameraRight.updateProjectionMatrix();
+      renderer.render(scene, cameraRight);
+
+      renderer.setScissorTest(false);
+    } else {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, innerWidth, innerHeight);
+      renderer.render(scene, camera);
+    }
+  } else {
+    controls.update(delta);
+
+    if(isStereoOn) {
+      var w = innerWidth, h = innerHeight;
+      var halfW = Math.floor(w / 2);
+      camRightVec.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+
+      cameraLeft.position.copy(camera.position).addScaledVector(camRightVec, -stereoEyeDist / 2);
+      cameraLeft.quaternion.copy(camera.quaternion);
+
+      cameraRight.position.copy(camera.position).addScaledVector(camRightVec, stereoEyeDist / 2);
+      cameraRight.quaternion.copy(camera.quaternion);
+
+      renderer.setScissorTest(true);
+      renderer.setViewport(-stereoImageOffset, 0, halfW, h);
+      renderer.setScissor(0, 0, halfW, h);
+      cameraLeft.aspect = halfW / h; cameraLeft.updateProjectionMatrix();
+      renderer.render(scene, cameraLeft);
+
+      renderer.setViewport(halfW + stereoImageOffset, 0, halfW, h);
+      renderer.setScissor(halfW, 0, halfW, h);
+      cameraRight.aspect = halfW / h; cameraRight.updateProjectionMatrix();
+      renderer.render(scene, cameraRight);
+
+      renderer.setScissorTest(false);
+    } else {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, innerWidth, innerHeight);
+      renderer.render(scene, camera);
+    }
+  }
+}
+animate();
+
+window.addEventListener('resize', function(){
+  renderer.setSize(innerWidth, innerHeight);
+  positionHuds();
+  positionTouchControls();
+});
+
+})();
+</script>
+</body>
+</html>
