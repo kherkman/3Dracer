@@ -12,7 +12,7 @@
   #ui {
     position:fixed; top:18px; left:18px; z-index:10;
     color:#2a2f22; width:340px; max-height:90vh; overflow-y:auto;
-    background:rgba(255,255,255,0.78);
+    background:rgba(255,255,255,0.82);
     backdrop-filter: blur(10px);
     border:1px solid rgba(255,255,255,0.7);
     border-radius:14px;
@@ -40,10 +40,12 @@
   .btn.active { background:#d4611f; color:#fff; }
   .btn.race { background:#28a745; color:#fff; border-color:#28a745; grid-column: span 2; font-size:0.85rem; padding:11px; }
   .btn.race:hover { background:#218838; }
+  .btn.players-btn { background:#0066cc; color:#fff; border-color:#0052a3; grid-column: span 2; font-size:0.82rem; }
+  .btn.players-btn:hover { background:#0052a3; }
 
   .setting-row {
     display:flex; justify-content:space-between; align-items:center;
-    margin-bottom:6px; font-size:0.8rem; font-weight:600; color:#2a2f22;
+    margin-bottom:8px; font-size:0.8rem; font-weight:600; color:#2a2f22;
   }
   .setting-row label { display:flex; align-items:center; gap:6px; }
   .setting-row input[type="number"] {
@@ -61,36 +63,67 @@
     display:none; margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.12);
   }
 
-  /* PELAAJIEN NIMITOIMINTO JA OHJAINVALIKOT */
-  #playerControlsConfig {
-    margin-top:10px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.12);
-    display:flex; flex-direction:column; gap:8px;
+  /* PELAAJIEN MUOKKAUSMODAALI */
+  #playerModal {
+    display:none; position:fixed; inset:0; z-index:600;
+    background:rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    align-items:center; justify-content:center; padding:16px;
   }
-  .ctrl-card {
-    background:rgba(0,0,0,0.035); border:1px solid rgba(0,0,0,0.08);
-    padding:8px; border-radius:8px; display:flex; flex-direction:column; gap:4px;
+  .modal-content {
+    background:#ffffff; border-radius:16px; width:100%; max-width:960px;
+    max-height:90vh; overflow-y:auto; padding:20px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.4); display:flex; flex-direction:column; gap:16px;
   }
-  .ctrl-group {
-    display:flex; flex-direction:column; gap:2px; font-size:0.78rem;
+  .modal-header {
+    display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid #eee; padding-bottom:10px;
   }
-  .ctrl-group label { font-weight:700; color:#33301f; display:flex; align-items:center; gap:4px; }
+  .modal-header h2 { font-size:1.2rem; color:#33301f; }
+  .modal-close-btn {
+    background:#e03e3e; color:#fff; border:none; border-radius:50%;
+    width:32px; height:32px; font-weight:bold; cursor:pointer; font-size:1rem;
+  }
+
+  .players-cards-container {
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap:14px; width:100%;
+  }
+  .player-card {
+    background:#f8f9fa; border:1px solid #e2e8f0; border-radius:12px;
+    padding:12px; display:flex; flex-direction:column; gap:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.05);
+  }
+  .player-card-header { font-weight:700; font-size:0.9rem; color:#1a202c; display:flex; align-items:center; gap:6px; }
   
-  .player-name-input {
-    padding:6px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.2);
-    background:#fff; font-size:0.8rem; font-weight:700; color:#2a2f22; outline:none;
+  .car-preview-box {
+    width:100%; height:130px; background:#1e293b; border-radius:8px;
+    overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;
+  }
+  .car-preview-box canvas { display:block !important; width:100% !important; height:100% !important; }
+
+  .ctrl-group { display:flex; flex-direction:column; gap:3px; font-size:0.75rem; font-weight:600; color:#4a5568; }
+  .ctrl-group label { display:flex; align-items:center; gap:4px; }
+  
+  .player-name-input, .ctrl-select, .car-tex-select {
+    width:100%; padding:6px 8px; border-radius:6px; border:1px solid #cbd5e1;
+    background:#fff; font-size:0.78rem; font-weight:600; color:#1e293b; outline:none;
     touch-action: manipulation; user-select:text; -webkit-user-select:text;
   }
-  .player-name-input:focus { border-color:#d4611f; }
+  .player-name-input:focus, .ctrl-select:focus, .car-tex-select:focus { border-color:#d4611f; }
 
-  .ctrl-select {
-    padding:6px 8px; border-radius:6px; border:1px solid rgba(0,0,0,0.2);
-    background:#fff; font-size:0.78rem; font-weight:600; color:#2a2f22; cursor:pointer;
-    touch-action: manipulation;
+  .color-picker-row {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
   }
+  .car-color-picker {
+    -webkit-appearance:none; border:none; width:42px; height:30px;
+    border-radius:6px; cursor:pointer; background:none;
+  }
+  .car-color-picker::-webkit-color-swatch-wrapper { padding:0; }
+  .car-color-picker::-webkit-color-swatch { border:1px solid #ccc; border-radius:6px; }
 
   #btPairBtn {
-    margin-top:8px; width:100%; background:#0066cc; color:#fff;
-    border:none; padding:9px 10px; border-radius:8px; font-size:0.78rem;
+    margin-top:4px; width:100%; background:#0066cc; color:#fff;
+    border:none; padding:10px 12px; border-radius:8px; font-size:0.78rem;
     font-weight:700; cursor:pointer; transition: background 0.15s ease;
     touch-action: manipulation;
   }
@@ -157,7 +190,7 @@
   .touch-btn.gas { background:rgba(40,167,69,0.65); border-color:#28a745; color:#fff; }
   .touch-btn.brake { background:rgba(220,53,69,0.65); border-color:#dc3545; color:#fff; }
 
-  /* JAKOVIIVAT JAETULLA RUUDULLA */
+  /* JAKOVIIVAT JAKO-RUUDULLA */
   .grid-divider { display:none; position:fixed; background:#111; z-index:100; box-shadow:0 0 8px rgba(0,0,0,0.6); }
   #dividerH { top:50%; left:0; width:100%; height:4px; transform:translateY(-50%); }
   #dividerV { top:0; left:50%; width:4px; height:100%; transform:translateX(-50%); }
@@ -255,16 +288,33 @@
   </div>
 </div>
 
+<!-- PELAAJIEN MUOKKAUSMODAALI -->
+<div id="playerModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>🎮 Pelaajien ja autojen asetukset</h2>
+      <button class="modal-close-btn" id="closeModalBtn">✕</button>
+    </div>
+    <div class="players-cards-container" id="modalCardsContainer"></div>
+    <button id="btPairBtn">📶 Yhdistä Bluetooth-laite (Web BT)</button>
+  </div>
+</div>
+
 <div id="ui">
   <h1>🏁 Autokisaradan generaattori</h1>
 
   <div class="ui-buttons-grid">
     <button class="btn race" id="raceBtn">🏎️ Aloita kisa</button>
+    <button class="btn players-btn" id="openPlayersModalBtn">🎮 Pelaajat & Autot</button>
     <button class="btn" id="regenBtn">🔄 Uusi rata</button>
     <button class="btn" id="flyBtn">📷 Ajolinja</button>
     <button class="btn" id="rotateBtn">↻ Kierto</button>
     <button class="btn active" id="treesBtn">🌲 Metsä</button>
     <button class="btn active" id="curbBtn">🚧 Reunat</button>
+    <button class="btn active" id="texturesBtn">🖼️ Tekstuurit On</button>
+    <button class="btn active" id="waterBtn">🌊 Vesi On</button>
+    <button class="btn" id="rainBtn">🌧️ Sade Off</button>
+    <button class="btn" id="cloudsBtn">☁️ Pilvet Off</button>
     <button class="btn" id="stereoBtn" style="grid-column: span 2;">🥽 3D Stereo</button>
   </div>
 
@@ -281,8 +331,51 @@
     </div>
   </div>
 
-  <p id="uiDesc">Valitse kilpailijat, pelaajat (1-4) sekä kierrosmäärä. Syötä nimet ja valitse ohjaimet!</p>
-  
+  <div class="setting-row">
+    <label for="musicSelect">🎵 Taustamusiikki:</label>
+    <select id="musicSelect" class="ctrl-select" style="width:130px;"></select>
+  </div>
+
+  <div class="setting-row">
+    <label for="musicVolSlider">🔊 Musiikin voimakkuus:</label>
+    <input type="range" id="musicVolSlider" min="0" max="1" step="0.05" value="0.5">
+    <span id="musicVolVal" class="hud-val">50%</span>
+  </div>
+
+  <div class="setting-row">
+    <label for="fxVolSlider">🔊 FX Äänet:</label>
+    <input type="range" id="fxVolSlider" min="0" max="1" step="0.05" value="0.7">
+    <span id="fxVolVal" class="hud-val">70%</span>
+  </div>
+
+  <div class="setting-row">
+    <label for="timeSelect">⏰ Vuorokaudenaika:</label>
+    <select id="timeSelect" class="ctrl-select" style="width:130px;">
+      <option value="paiva" selected>☀️ Päivä</option>
+      <option value="yo">🌙 Yö</option>
+    </select>
+  </div>
+
+  <div class="setting-row">
+    <label for="seasonSelect">🍂 Vuodenaika:</label>
+    <select id="seasonSelect" class="ctrl-select" style="width:130px;">
+      <option value="kesa" selected>🌿 Kesä</option>
+      <option value="syksy">🍂 Syksy</option>
+      <option value="talvi">❄️ Talvi</option>
+      <option value="kevat">🌱 Kevät</option>
+    </select>
+  </div>
+
+  <div class="setting-row">
+    <label for="envSelect">🌲 Ympäristö:</label>
+    <select id="envSelect" class="ctrl-select" style="width:130px;">
+      <option value="simple" selected>Simple (Perus)</option>
+      <option value="palmu">🌴 Palmu</option>
+      <option value="kuusi">🌲 Kuusi</option>
+      <option value="koivu">🌿 Koivu</option>
+    </select>
+  </div>
+
   <div class="setting-row">
     <label for="numCompetitors">🏁 Kilpailijat (1-8):</label>
     <input type="number" id="numCompetitors" min="1" max="8" value="2">
@@ -295,9 +388,6 @@
     <label for="numLaps">🔄 Kierrokset (1-20):</label>
     <input type="number" id="numLaps" min="1" max="20" value="3">
   </div>
-
-  <div id="playerControlsConfig"></div>
-  <button id="btPairBtn">📶 Yhdistä Bluetooth-laite (Web BT)</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
@@ -311,13 +401,183 @@
 window.addEventListener('error', function(e){
   var box = document.getElementById('errorBox');
   box.style.display = 'block';
-  box.textContent = '⚠️ Virhe: ' + (e.message || e) + ' — tarkista internetyhteys.';
+  box.textContent = '⚠️ Virhe: ' + (e.message || e) + ' — tarkista tiedostot ja internetyhteys.';
 });
 
 (function(){
 
 /* ---------------------------------------------------------------
-   APUFUNKTIOT & TEEMA
+   TAUSTAMUSIIKKI (HELPPOSTI LISÄTTÄVÄ TAULUKKO)
+--------------------------------------------------------------- */
+var MUSIC_TRACKS = [
+  { name: 'Musiikki Off', url: '' },
+  { name: '🎵 Musiikki 1', url: 'music1.mp3' },
+  { name: '🎵 Musiikki 2', url: 'music2.mp3' },
+  { name: '🎵 Musiikki 3', url: 'music3.mp3' },
+  { name: '🎵 Musiikki 4', url: 'music4.mp3' },
+  { name: '🎵 Musiikki 5', url: 'music5.mp3' }
+];
+
+var currentMusicAudio = null;
+var musicVolume = 0.5;
+var musicPlayed = false;
+
+var musicSelect = document.getElementById('musicSelect');
+MUSIC_TRACKS.forEach(function(track, idx) {
+  var opt = document.createElement('option');
+  opt.value = idx;
+  opt.textContent = track.name;
+  if(idx === 1) opt.selected = true; // Oletuksena musiikki 1
+  musicSelect.appendChild(opt);
+});
+
+function playSelectedMusic(index) {
+  if (currentMusicAudio) {
+    currentMusicAudio.pause();
+    currentMusicAudio = null;
+  }
+  var track = MUSIC_TRACKS[index];
+  if (!track || !track.url) return;
+
+  currentMusicAudio = new Audio(track.url);
+  currentMusicAudio.loop = true;
+  currentMusicAudio.volume = musicVolume;
+  currentMusicAudio.play().then(function(){
+    musicPlayed = true;
+  }).catch(function(err){});
+}
+
+function tryPlayMusic() {
+  if (!musicPlayed && musicSelect.value > 0) {
+    playSelectedMusic(parseInt(musicSelect.value));
+  }
+}
+
+window.addEventListener('pointerdown', tryPlayMusic, { once: true });
+
+musicSelect.addEventListener('change', function(e){
+  playSelectedMusic(parseInt(e.target.value));
+});
+
+var musicVolSlider = document.getElementById('musicVolSlider');
+var musicVolVal = document.getElementById('musicVolVal');
+musicVolSlider.addEventListener('input', function(e){
+  musicVolume = parseFloat(e.target.value);
+  if (currentMusicAudio) currentMusicAudio.volume = musicVolume;
+  musicVolVal.innerText = Math.round(musicVolume * 100) + "%";
+  tryPlayMusic();
+});
+
+/* ---------------------------------------------------------------
+   FX ÄÄNIEFEKTIT
+--------------------------------------------------------------- */
+var fxVolume = 0.7;
+var fxVolSlider = document.getElementById('fxVolSlider');
+var fxVolVal = document.getElementById('fxVolVal');
+
+fxVolSlider.addEventListener('input', function(e){
+  fxVolume = parseFloat(e.target.value);
+  fxVolVal.innerText = Math.round(fxVolume * 100) + "%";
+});
+
+var FX_FILES = {
+  splash: 'splash.mp3',
+  sand: 'sand.mp3',
+  collision: 'collision.mp3',
+  beep: 'beep.mp3',
+  go: 'go.mp3',
+  finish: 'finish.mp3'
+};
+
+var lastFxTimes = {};
+
+function playFX(fxKey) {
+  if (fxVolume <= 0 || !FX_FILES[fxKey]) return;
+
+  // Estetään täysin samaa ääntä päällekkäin liian tiheään (max 100ms välein)
+  var now = performance.now();
+  if (lastFxTimes[fxKey] && now - lastFxTimes[fxKey] < 100) return;
+  lastFxTimes[fxKey] = now;
+
+  var audio = new Audio(FX_FILES[fxKey]);
+  audio.volume = fxVolume;
+  audio.play().catch(function(){});
+}
+
+/* ---------------------------------------------------------------
+   GLOBAALIT MUUTTUJAT JA TILA
+--------------------------------------------------------------- */
+var texturesEnabled = true;
+var waterEnabled = true;
+var isRain = false;
+var isClouds = false;
+var currentTimeOfDay = 'paiva';
+var currentSeason = 'kesa';
+var currentEnvironment = 'simple';
+
+var ENV_TEXTURE_PATHS = {
+  grass: 'nurmikko.jpg',
+  asphalt: 'asfaltti.jpg',
+  gravel: 'hiekka.jpg',
+  foliage: 'kuusenpiikit.jpg',
+  trunk: 'kuusenrunko.jpg'
+};
+
+var CAR_TEXTURE_PATHS = [
+  { name: 'Ei tekstiiliä / Perus', url: '' },
+  { name: 'Tekstuuri 1 (Urheilu)', url: 'car_tex1.jpg' },
+  { name: 'Tekstuuri 2 (Raidat)', url: 'car_tex2.jpg' },
+  { name: 'Tekstuuri 3 (Salamat)', url: 'car_tex3.jpg' },
+  { name: 'Tekstuuri 4 (Liekit)', url: 'car_tex4.jpg' },
+  { name: 'Tekstuuri 5 (Hiilikuitu)', url: 'car_tex5.jpg' },
+  { name: 'Tekstuuri 6 (Camouflage)', url: 'car_tex6.jpg' },
+  { name: 'Tekstuuri 7 (Grafiitti)', url: 'car_tex7.jpg' },
+  { name: 'Tekstuuri 8 (Retro Ralli)', url: 'car_tex8.jpg' }
+];
+
+var textureLoader = new THREE.TextureLoader();
+var loadedTexturesCache = {};
+
+function createProceduralFallbackTex(colorHex, label) {
+  var c = document.createElement('canvas'); c.width = 128; c.height = 128;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = colorHex || '#888888'; ctx.fillRect(0,0,128,128);
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  for(var i=0; i<100; i++) ctx.fillRect(Math.random()*128, Math.random()*128, 2, 2);
+  if(label) {
+    ctx.fillStyle = '#ffffff'; ctx.font = '12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(label, 64, 64);
+  }
+  var tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function loadTextureWithFallback(url, repeatX, repeatY, fallbackColor, label) {
+  if (!url) return null;
+  if (loadedTexturesCache[url]) return loadedTexturesCache[url];
+
+  var tex = textureLoader.load(
+    url,
+    function(t) {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      if (repeatX && repeatY) t.repeat.set(repeatX, repeatY);
+      t.needsUpdate = true;
+    },
+    undefined,
+    function() {
+      var fb = createProceduralFallbackTex(fallbackColor, label || 'JPG');
+      if (repeatX && repeatY) fb.repeat.set(repeatX, repeatY);
+      tex.image = fb.image;
+      tex.needsUpdate = true;
+    }
+  );
+  loadedTexturesCache[url] = tex;
+  return tex;
+}
+
+/* ---------------------------------------------------------------
+   APUFUNKTIOT
 --------------------------------------------------------------- */
 function concatFloat32(arrays) {
   var total = 0;
@@ -376,15 +636,9 @@ function formatTime(sec) {
   return mStr + ":" + sStr + "." + ms;
 }
 
-var CAR_PALETTES = [
-  { color: 0xd42419, accent: 0x111111, hexCss: '#d42419' },
-  { color: 0x28a745, accent: 0xffd700, hexCss: '#28a745' },
-  { color: 0xeb8b00, accent: 0x111111, hexCss: '#eb8b00' },
-  { color: 0x8e24aa, accent: 0x00e676, hexCss: '#8e24aa' },
-  { color: 0x1e62d0, accent: 0xffffff, hexCss: '#1e62d0' },
-  { color: 0x00acc1, accent: 0xff3d00, hexCss: '#00acc1' },
-  { color: 0xff6d00, accent: 0x212121, hexCss: '#ff6d00' },
-  { color: 0xd81b60, accent: 0x3949ab, hexCss: '#d81b60' }
+var PRESET_PALETTES = [
+  '#d42419', '#28a745', '#eb8b00', '#8e24aa',
+  '#1e62d0', '#00acc1', '#ff6d00', '#d81b60'
 ];
 
 /* ---------------------------------------------------------------
@@ -414,7 +668,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
-/* Kameraohjaus (vapaa katselu) */
+/* Kameraohjaus */
 var controls = (function(){
   var target = new THREE.Vector3(0, 6, 0);
   var spherical = new THREE.Spherical();
@@ -472,46 +726,80 @@ var controls = (function(){
 })();
 
 /* ---------------------------------------------------------------
-   TAIVAS JA VALOT
+   TAIVAS, AURINGONVALO, KUU JA TÄHDET
 --------------------------------------------------------------- */
-(function(){
-  var skyGeo = new THREE.SphereGeometry(280, 32, 16);
-  var skyMat = new THREE.ShaderMaterial({
-    uniforms: {
-      topColor:    { value: new THREE.Color(0x7fa8d8) },
-      bottomColor: { value: new THREE.Color(0xe9ecdd) },
-      offset:      { value: 30 },
-      exponent:    { value: 0.75 }
-    },
-    vertexShader: [
-      'varying vec3 vWorldPosition;',
-      'void main() {',
-      '  vec4 worldPosition = modelMatrix * vec4(position, 1.0);',
-      '  vWorldPosition = worldPosition.xyz;',
-      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-      '}'
-    ].join('\n'),
-    fragmentShader: [
-      'uniform vec3 topColor;',
-      'uniform vec3 bottomColor;',
-      'uniform float offset;',
-      'uniform float exponent;',
-      'varying vec3 vWorldPosition;',
-      'void main() {',
-      '  float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y;',
-      '  gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);',
-      '}'
-    ].join('\n'),
-    side: THREE.BackSide
-  });
-  scene.add(new THREE.Mesh(skyGeo, skyMat));
-})();
+var skyGeo = new THREE.SphereGeometry(280, 32, 16);
+var skyMat = new THREE.ShaderMaterial({
+  uniforms: {
+    topColor:    { value: new THREE.Color(0x7fa8d8) },
+    bottomColor: { value: new THREE.Color(0xe9ecdd) },
+    offset:      { value: 20 },
+    exponent:    { value: 0.75 }
+  },
+  vertexShader: [
+    'varying vec3 vWorldPosition;',
+    'void main() {',
+    '  vec4 worldPosition = modelMatrix * vec4(position, 1.0);',
+    '  vWorldPosition = worldPosition.xyz;',
+    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+    '}'
+  ].join('\n'),
+  fragmentShader: [
+    'uniform vec3 topColor;',
+    'uniform vec3 bottomColor;',
+    'uniform float offset;',
+    'uniform float exponent;',
+    'varying vec3 vWorldPosition;',
+    'void main() {',
+    '  float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y;',
+    '  gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);',
+    '}'
+  ].join('\n'),
+  side: THREE.BackSide
+});
+scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+// AURINKO
+var sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(7, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xfffae0 })
+);
+sunMesh.position.set(80, 32, 40);
+scene.add(sunMesh);
+
+// KUU
+var moonMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(6, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xeeece1 })
+);
+moonMesh.position.set(-80, 32, -40);
+moonMesh.visible = false;
+scene.add(moonMesh);
+
+// TÄHDET
+var starsGeo = new THREE.BufferGeometry();
+var starPositions = [];
+var numStars = 1500;
+var rDome = 275;
+for (var i = 0; i < numStars; i++) {
+  var theta = Math.random() * Math.PI * 2.0;
+  var phi = Math.random() * (Math.PI * 0.48);
+  var x = rDome * Math.sin(phi) * Math.cos(theta);
+  var y = rDome * Math.cos(phi);
+  var z = rDome * Math.sin(phi) * Math.sin(theta);
+  starPositions.push(x, y, z);
+}
+starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+var starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.3, transparent: true, opacity: 0.85 });
+var starsMesh = new THREE.Points(starsGeo, starsMat);
+starsMesh.visible = false;
+scene.add(starsMesh);
 
 var hemi = new THREE.HemisphereLight(0xbcd4e8, 0x30301c, 0.85);
 scene.add(hemi);
 
 var sun = new THREE.DirectionalLight(0xfff2d8, 1.9);
-sun.position.set(60, 90, 40);
+sun.position.set(80, 45, 40);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -120; sun.shadow.camera.right = 120;
@@ -523,6 +811,240 @@ scene.add(sun); scene.add(sun.target);
 var fill = new THREE.DirectionalLight(0xbcd0ff, 0.3);
 fill.position.set(-40, 30, -30);
 scene.add(fill);
+
+function updateEnvironmentAtmosphere() {
+  if (currentTimeOfDay === 'yo') {
+    skyMat.uniforms.topColor.value.set(0x020408);
+    skyMat.uniforms.bottomColor.value.set(0x0d1424);
+    scene.fog.color.set(0x0a0e17);
+    hemi.color.set(0x1a2638); hemi.groundColor.set(0x05080f);
+    sun.color.set(0x88aacc); sun.intensity = 0.25;
+    
+    sunMesh.visible = false;
+    moonMesh.visible = true;
+    starsMesh.visible = true;
+  } else {
+    sunMesh.visible = true;
+    moonMesh.visible = false;
+    starsMesh.visible = false;
+
+    if (currentSeason === 'kesa') {
+      skyMat.uniforms.topColor.value.set(0x7fa8d8);
+      skyMat.uniforms.bottomColor.value.set(0xe9ecdd);
+      scene.fog.color.set(0xd8e4d0);
+      hemi.color.set(0xbcd4e8); hemi.groundColor.set(0x30301c);
+      sun.color.set(0xfff2d8); sun.intensity = 1.9;
+    } else if (currentSeason === 'syksy') {
+      skyMat.uniforms.topColor.value.set(0x4a382a);
+      skyMat.uniforms.bottomColor.value.set(0xe8a868);
+      scene.fog.color.set(0x38281c);
+      hemi.color.set(0xe8a868); hemi.groundColor.set(0x2a1c12);
+      sun.color.set(0xff9e54); sun.intensity = 1.7;
+    } else if (currentSeason === 'talvi') {
+      skyMat.uniforms.topColor.value.set(0x6b8496);
+      skyMat.uniforms.bottomColor.value.set(0xdfe8e6);
+      scene.fog.color.set(0x1c2830);
+      hemi.color.set(0xaebfc9); hemi.groundColor.set(0x24322c);
+      sun.color.set(0xdfe9f2); sun.intensity = 1.25;
+    } else if (currentSeason === 'kevat') {
+      skyMat.uniforms.topColor.value.set(0x4a8ac2);
+      skyMat.uniforms.bottomColor.value.set(0xd8f0e6);
+      scene.fog.color.set(0xc2e4d8);
+      hemi.color.set(0xb8e2f8); hemi.groundColor.set(0x2c4224);
+      sun.color.set(0xfffae6); sun.intensity = 1.8;
+    }
+  }
+
+  cars.forEach(function(c) {
+    if (c.headlight1 && c.headlight2) {
+      c.headlight1.visible = (currentTimeOfDay === 'yo');
+      c.headlight2.visible = (currentTimeOfDay === 'yo');
+    }
+  });
+}
+
+/* ---------------------------------------------------------------
+   PILVET
+--------------------------------------------------------------- */
+var cloudGroup = new THREE.Group();
+scene.add(cloudGroup);
+
+function buildClouds() {
+  while(cloudGroup.children.length > 0) {
+    var c = cloudGroup.children[0];
+    if(c.geometry) c.geometry.dispose();
+    cloudGroup.remove(c);
+  }
+
+  if (!isClouds) return;
+
+  var cloudMat = new THREE.MeshStandardMaterial({
+    color: (currentTimeOfDay === 'yo') ? 0x222834 : (isRain ? 0x707880 : 0xffffff),
+    roughness: 0.9,
+    transparent: true,
+    opacity: 0.85
+  });
+
+  for (var i = 0; i < 24; i++) {
+    var cloudMeshGroup = new THREE.Group();
+    var puffCount = 5 + Math.floor(Math.random() * 5);
+    for (var p = 0; p < puffCount; p++) {
+      var r = 12 + Math.random() * 14;
+      var puffGeo = new THREE.DodecahedronGeometry(r, 1);
+      var puff = new THREE.Mesh(puffGeo, cloudMat);
+      puff.position.set((Math.random()-0.5)*28, (Math.random()-0.5)*6, (Math.random()-0.5)*28);
+      cloudMeshGroup.add(puff);
+    }
+    var cx = (Math.random() - 0.5) * 350;
+    var cz = (Math.random() - 0.5) * 350;
+    var cy = 48 + Math.random() * 20;
+    cloudMeshGroup.position.set(cx, cy, cz);
+    cloudGroup.add(cloudMeshGroup);
+  }
+}
+
+/* ---------------------------------------------------------------
+   SADE JA LUMISADE
+--------------------------------------------------------------- */
+var rainLineCount = 1200;
+var rainLineGeo = new THREE.BufferGeometry();
+var rainLinePositions = new Float32Array(rainLineCount * 6);
+rainLineGeo.setAttribute('position', new THREE.BufferAttribute(rainLinePositions, 3));
+var rainLineMat = new THREE.LineBasicMaterial({ color: 0x99ccff, transparent: true, opacity: 0.75, linewidth: 1.5 });
+var rainLineSystem = new THREE.LineSegments(rainLineGeo, rainLineMat);
+rainLineSystem.visible = false;
+scene.add(rainLineSystem);
+
+function createSnowFlakeTexture() {
+  var c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  var ctx = c.getContext('2d');
+  var g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1.0)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.8)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(32, 32, 32, 0, Math.PI*2); ctx.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+var snowCount = 1200;
+var snowGeo = new THREE.BufferGeometry();
+var snowPos = new Float32Array(snowCount * 3);
+for (var i = 0; i < snowCount; i++) {
+  snowPos[i*3] = (Math.random() - 0.5) * 120;
+  snowPos[i*3+1] = Math.random() * 50;
+  snowPos[i*3+2] = (Math.random() - 0.5) * 120;
+}
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+var snowMat = new THREE.PointsMaterial({
+  map: createSnowFlakeTexture(),
+  size: 1.3,
+  transparent: true,
+  opacity: 0.9,
+  depthWrite: false
+});
+var snowPointSystem = new THREE.Points(snowGeo, snowMat);
+snowPointSystem.visible = false;
+scene.add(snowPointSystem);
+
+function updatePrecipitation(delta) {
+  if (!isRain) {
+    rainLineSystem.visible = false;
+    snowPointSystem.visible = false;
+    return;
+  }
+
+  var isSnow = (currentSeason === 'talvi');
+  rainLineSystem.visible = !isSnow;
+  snowPointSystem.visible = isSnow;
+
+  var targetCam = isRacing && cars[0] ? cars[0].mesh.position : camera.position;
+
+  if (isSnow) {
+    var pos = snowGeo.attributes.position;
+    for (var i = 0; i < snowCount; i++) {
+      var py = pos.getY(i);
+      py -= (6.0 + Math.random()*2.0) * delta;
+      var px = pos.getX(i) + Math.sin(py * 0.12 + i) * 1.5 * delta;
+      var pz = pos.getZ(i);
+
+      if (py < targetCam.y - 10) {
+        py = targetCam.y + 35 + Math.random()*10;
+        px = targetCam.x + (Math.random() - 0.5) * 120;
+        pz = targetCam.z + (Math.random() - 0.5) * 120;
+      }
+      pos.setXYZ(i, px, py, pz);
+    }
+    pos.needsUpdate = true;
+  } else {
+    var posL = rainLineGeo.attributes.position;
+    var dropLen = 2.2;
+    for (var i = 0; i < rainLineCount; i++) {
+      var idx = i * 6;
+      var py = posL.array[idx + 1];
+      py -= (42.0 + Math.random()*12.0) * delta;
+
+      var px = posL.array[idx];
+      var pz = posL.array[idx + 2];
+
+      if (py < targetCam.y - 10) {
+        py = targetCam.y + 35 + Math.random()*10;
+        px = targetCam.x + (Math.random() - 0.5) * 120;
+        pz = targetCam.z + (Math.random() - 0.5) * 120;
+      }
+
+      posL.array[idx] = px;
+      posL.array[idx + 1] = py;
+      posL.array[idx + 2] = pz;
+
+      posL.array[idx + 3] = px;
+      posL.array[idx + 4] = py - dropLen;
+      posL.array[idx + 5] = pz;
+    }
+    posL.needsUpdate = true;
+  }
+}
+
+/* ---------------------------------------------------------------
+   HIEKKAPÖLYPARTIKKELIT
+--------------------------------------------------------------- */
+var dustParticles = [];
+var dustGeo = new THREE.SphereGeometry(0.35, 6, 6);
+var dustMat = new THREE.MeshStandardMaterial({
+  color: 0xc2a678,
+  roughness: 1.0,
+  transparent: true,
+  opacity: 0.6
+});
+
+function spawnDustParticles(x, y, z, count) {
+  for (var i = 0; i < count; i++) {
+    var mesh = new THREE.Mesh(dustGeo, dustMat);
+    mesh.position.set(x + (Math.random()-0.5)*1.2, y + 0.2, z + (Math.random()-0.5)*1.2);
+    var vx = (Math.random() - 0.5) * 2.0;
+    var vy = 1.0 + Math.random() * 2.0;
+    var vz = (Math.random() - 0.5) * 2.0;
+    scene.add(mesh);
+    dustParticles.push({ mesh: mesh, vx: vx, vy: vy, vz: vz, life: 0.6 + Math.random()*0.4, scale: 0.8 });
+  }
+}
+
+function updateDustParticles(delta) {
+  for (var i = dustParticles.length - 1; i >= 0; i--) {
+    var p = dustParticles[i];
+    p.life -= delta;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      dustParticles.splice(i, 1);
+    } else {
+      p.mesh.position.x += p.vx * delta;
+      p.mesh.position.y += p.vy * delta;
+      p.mesh.position.z += p.vz * delta;
+      p.scale += delta * 2.5;
+      p.mesh.scale.set(p.scale, p.scale, p.scale);
+    }
+  }
+}
 
 /* ---------------------------------------------------------------
    MAASTOKOHINA JA RADAN GEOMETRIA
@@ -703,10 +1225,21 @@ function terrainSample(track, x, z){
   }
   var shoulder = [0.34,0.28,0.19];
   var patch = smoothNoise(x*0.05+50, z*0.05+50);
-  var grassA = [0.20,0.38,0.13], grassB = [0.30,0.47,0.19];
+
+  var grassA, grassB;
+  if (currentSeason === 'kesa') {
+    grassA = [0.20,0.38,0.13]; grassB = [0.30,0.47,0.19];
+  } else if (currentSeason === 'syksy') {
+    grassA = [0.42,0.35,0.15]; grassB = [0.55,0.42,0.18];
+  } else if (currentSeason === 'talvi') {
+    grassA = [0.85,0.90,0.92]; grassB = [0.92,0.95,0.97];
+  } else {
+    grassA = [0.32,0.52,0.18]; grassB = [0.45,0.62,0.22];
+  }
+
   var grass = lerp3(grassA, grassB, patch);
   var heightT = THREE.MathUtils.clamp(raw/(currentHillAmp||10), 0, 1);
-  var rock = [0.52,0.50,0.46];
+  var rock = (currentSeason === 'talvi') ? [0.8,0.85,0.9] : [0.52,0.50,0.46];
   var grassOrRock = lerp3(grass, rock, smoothstep(0.6, 0.95, heightT));
   var col = lerp3(shoulder, grassOrRock, zoneT);
   return { y:y, color:col };
@@ -854,9 +1387,99 @@ function buildFinishLine(track) {
 }
 
 /* ---------------------------------------------------------------
-   TEKSTUURIT JA MALLIT
+   VESI- LÄTÄKÖT JA VESIROISKEET
 --------------------------------------------------------------- */
-function makeAsphaltTexture(){
+var puddlesList = [];
+var waterGroup = new THREE.Group();
+scene.add(waterGroup);
+
+var splashParticles = [];
+var splashGeo = new THREE.SphereGeometry(0.08, 6, 6);
+var splashMat = new THREE.MeshStandardMaterial({ color: 0xc8e6ff, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.8 });
+
+function buildPuddles(track) {
+  puddlesList = [];
+  while(waterGroup.children.length > 0){
+    var obj = waterGroup.children[0];
+    if(obj.geometry) obj.geometry.dispose();
+    waterGroup.remove(obj);
+  }
+
+  if (!waterEnabled) return;
+
+  var minY = Infinity, maxY = -Infinity;
+  for (var i = 0; i < track.n; i++) {
+    var y = track.samples[i].y;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+
+  var waterLevel = minY + (maxY - minY) * 0.28;
+  var pMat = new THREE.MeshStandardMaterial({
+    color: 0x3a6073,
+    roughness: 0.05,
+    metalness: 0.9,
+    transparent: true,
+    opacity: 0.8,
+    side: THREE.DoubleSide
+  });
+
+  for (var i = 10; i < track.n - 10; i += 18) {
+    var s = track.samples[i];
+    if (s.y < waterLevel) {
+      var rx = ROAD_HALF_WIDTH * 0.75;
+      var rz = 3.0 + Math.random() * 2.5;
+      var circleGeo = new THREE.CircleGeometry(rx, 16);
+      circleGeo.rotateX(-Math.PI / 2);
+      circleGeo.scale(1, 1, rz / rx);
+
+      var pMesh = new THREE.Mesh(circleGeo, pMat);
+      var py = getRoadSurfaceHeight(track, s.x, s.z) + 0.03;
+      pMesh.position.set(s.x, py, s.z);
+      var angle = Math.atan2(s.tx, s.tz);
+      pMesh.rotation.y = angle;
+
+      waterGroup.add(pMesh);
+      puddlesList.push({ x: s.x, z: s.z, radius: rx * 1.2 });
+    }
+  }
+}
+
+function spawnSplashParticles(x, y, z, count) {
+  playFX('splash');
+  for (var i = 0; i < count; i++) {
+    var mesh = new THREE.Mesh(splashGeo, splashMat);
+    mesh.position.set(x + (Math.random()-0.5)*0.8, y + 0.1, z + (Math.random()-0.5)*0.8);
+    var vx = (Math.random() - 0.5) * 3.5;
+    var vy = 2.0 + Math.random() * 3.0;
+    var vz = (Math.random() - 0.5) * 3.5;
+    scene.add(mesh);
+    splashParticles.push({ mesh: mesh, vx: vx, vy: vy, vz: vz, life: 0.4 + Math.random()*0.3 });
+  }
+}
+
+function updateSplashParticles(delta) {
+  for (var i = splashParticles.length - 1; i >= 0; i--) {
+    var p = splashParticles[i];
+    p.life -= delta;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      splashParticles.splice(i, 1);
+    } else {
+      p.vy -= 9.8 * delta;
+      p.mesh.position.x += p.vx * delta;
+      p.mesh.position.y += p.vy * delta;
+      p.mesh.position.z += p.vz * delta;
+      var s = p.life * 2.0;
+      p.mesh.scale.set(s, s, s);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   TEKSTUURIT JA MAASTON MESHIT
+--------------------------------------------------------------- */
+function makeAsphaltProceduralTex(){
   var size=256, c=document.createElement('canvas'); c.width=c.height=size;
   var ctx=c.getContext('2d');
   ctx.fillStyle='#3a3a3d'; ctx.fillRect(0,0,size,size);
@@ -872,7 +1495,7 @@ function makeAsphaltTexture(){
   tex.encoding=THREE.sRGBEncoding;
   return tex;
 }
-function makeGravelTexture(){
+function makeGravelProceduralTex(){
   var size=256, c=document.createElement('canvas'); c.width=c.height=size;
   var ctx=c.getContext('2d');
   var grad=ctx.createLinearGradient(0,0,0,size);
@@ -888,21 +1511,6 @@ function makeGravelTexture(){
   var tex=new THREE.CanvasTexture(c);
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   tex.encoding=THREE.sRGBEncoding;
-  return tex;
-}
-function makeGrainTexture(){
-  var size=128, c=document.createElement('canvas'); c.width=c.height=size;
-  var ctx=c.getContext('2d');
-  ctx.fillStyle='rgb(232,232,232)'; ctx.fillRect(0,0,size,size);
-  for(var i=0;i<1800;i++){
-    var x=Math.random()*size, y=Math.random()*size;
-    var v=Math.floor(Math.random()*40);
-    var g=200-v;
-    ctx.fillStyle='rgba('+g+','+g+','+g+',0.5)';
-    ctx.fillRect(x,y,1,1);
-  }
-  var tex=new THREE.CanvasTexture(c);
-  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   return tex;
 }
 
@@ -930,9 +1538,13 @@ function buildTerrain(track){
   posAttr.needsUpdate=true;
   geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  var grain=makeGrainTexture();
-  grain.repeat.set(size/6, size/6);
-  var mat=new THREE.MeshStandardMaterial({ vertexColors:true, map:grain, roughness:1, metalness:0 });
+
+  var terrainTex = texturesEnabled ? loadTextureWithFallback(ENV_TEXTURE_PATHS.grass, size/6, size/6, '#3a6628', 'NURMIKKO') : null;
+  var mat=new THREE.MeshStandardMaterial({
+    vertexColors:true,
+    map: terrainTex,
+    roughness:1, metalness:0
+  });
   var mesh=new THREE.Mesh(geo, mat);
   mesh.receiveShadow=true;
   return { mesh:mesh, bounds:{ minX:minX,maxX:maxX,minZ:minZ,maxZ:maxZ,cx:cx,cz:cz,size:size } };
@@ -971,8 +1583,9 @@ function buildRoad(track){
   geo.addGroup(asphaltIdx.length, gravelIdx.length, 1);
   geo.computeVertexNormals();
 
-  var asphaltTex=makeAsphaltTexture();
-  var gravelTex=makeGravelTexture();
+  var asphaltTex = texturesEnabled ? loadTextureWithFallback(ENV_TEXTURE_PATHS.asphalt, 1, 30, '#333333', 'ASFALTTI') : makeAsphaltProceduralTex();
+  var gravelTex = texturesEnabled ? loadTextureWithFallback(ENV_TEXTURE_PATHS.gravel, 1, 30, '#8f7350', 'HIEKKA') : makeGravelProceduralTex();
+
   var asphaltMat=new THREE.MeshStandardMaterial({ map:asphaltTex, roughness:0.92, metalness:0.05, side:THREE.DoubleSide });
   var gravelMat=new THREE.MeshStandardMaterial({ map:gravelTex, roughness:1.0, side:THREE.DoubleSide });
   var mesh=new THREE.Mesh(geo, [asphaltMat, gravelMat]);
@@ -1054,60 +1667,233 @@ function buildDelineators(track){
   return inst;
 }
 
-function makeTreeGeometry(){
+/* ---------------------------------------------------------------
+   PROSEDURAALISET PUUT
+--------------------------------------------------------------- */
+function makeSimpleTreeGeometry(){
   var trunk=new THREE.CylinderGeometry(0.05,0.09,1.0,5); trunk.translate(0,0.5,0);
   var f1=new THREE.ConeGeometry(0.62,1.1,7); f1.translate(0,1.15,0);
   var f2=new THREE.ConeGeometry(0.48,0.95,7); f2.translate(0,1.75,0);
   var f3=new THREE.ConeGeometry(0.32,0.8,7); f3.translate(0,2.35,0);
+
+  var folCol1, folCol2, folCol3;
+  if (currentSeason === 'kesa') {
+    folCol1 = [0.13, 0.30, 0.14]; folCol2 = [0.15, 0.34, 0.16]; folCol3 = [0.18, 0.38, 0.18];
+  } else if (currentSeason === 'syksy') {
+    folCol1 = [0.45, 0.32, 0.12]; folCol2 = [0.52, 0.38, 0.14]; folCol3 = [0.60, 0.45, 0.16];
+  } else if (currentSeason === 'talvi') {
+    folCol1 = [0.75, 0.82, 0.85]; folCol2 = [0.80, 0.88, 0.90]; folCol3 = [0.88, 0.92, 0.95];
+  } else {
+    folCol1 = [0.22, 0.45, 0.18]; folCol2 = [0.26, 0.50, 0.20]; folCol3 = [0.30, 0.55, 0.22];
+  }
+
   return mergeGeometriesWithColors([
     { geo:trunk, color:[0.30,0.20,0.12] },
-    { geo:f1, color:[0.13,0.30,0.14] },
-    { geo:f2, color:[0.15,0.34,0.16] },
-    { geo:f3, color:[0.18,0.38,0.18] }
+    { geo:f1, color:folCol1 },
+    { geo:f2, color:folCol2 },
+    { geo:f3, color:folCol3 }
   ]);
 }
+
+function makePalmTreeGeometry() {
+  var parts = [];
+  var trunkSegs = 8;
+  for (var i = 0; i < trunkSegs; i++) {
+    var t = i / trunkSegs;
+    var r = lerp(0.18, 0.09, t);
+    var h = 0.5;
+    var cGeo = new THREE.CylinderGeometry(r*0.9, r, h, 6);
+    cGeo.translate(Math.sin(t*Math.PI*0.5)*0.3, i*0.48 + 0.25, 0);
+    cGeo.rotateY(t*0.3);
+    parts.push({ geo: cGeo, color: [0.38, 0.25, 0.14] });
+  }
+
+  var topY = trunkSegs * 0.48;
+  var frondCount = 10;
+  var leafCol = [0.15, 0.42, 0.12];
+  if (currentSeason === 'syksy') leafCol = [0.55, 0.42, 0.12];
+  else if (currentSeason === 'talvi') leafCol = [0.75, 0.80, 0.82];
+  else if (currentSeason === 'kevat') leafCol = [0.25, 0.55, 0.15];
+
+  for (var f = 0; f < frondCount; f++) {
+    var angle = (f / frondCount) * Math.PI * 2;
+    var frondGroupGeo = [];
+
+    var leafStem = new THREE.BoxGeometry(0.04, 0.03, 1.8);
+    leafStem.translate(0, 0, 0.9);
+    leafStem.rotateX(-0.35 - (f % 2)*0.1);
+    leafStem.rotateY(angle);
+    leafStem.translate(Math.sin(0.5*Math.PI)*0.3, topY, 0);
+    frondGroupGeo.push(leafStem);
+
+    for (var l = 0; l < 6; l++) {
+      var lt = l / 6;
+      var leaflet = new THREE.BoxGeometry(0.45 * (1 - lt*0.5), 0.01, 0.12);
+      leaflet.rotateZ((l % 2 === 0 ? 1 : -1) * 0.2);
+      leaflet.translate(0, -lt*0.3, 0.3 + lt * 1.3);
+      leaflet.rotateX(-0.35 - (f % 2)*0.1);
+      leaflet.rotateY(angle);
+      leaflet.translate(Math.sin(0.5*Math.PI)*0.3, topY, 0);
+      frondGroupGeo.push(leaflet);
+    }
+
+    var mergedFrond = mergeGeometries(frondGroupGeo);
+    parts.push({ geo: mergedFrond, color: leafCol });
+  }
+
+  for (var c = 0; c < 3; c++) {
+    var nut = new THREE.DodecahedronGeometry(0.12, 0);
+    var ca = c * 2.1;
+    nut.translate(Math.cos(ca)*0.16 + 0.3, topY - 0.1, Math.sin(ca)*0.16);
+    parts.push({ geo: nut, color: [0.28, 0.18, 0.08] });
+  }
+
+  return mergeGeometriesWithColors(parts);
+}
+
+function makeSpruceTreeGeometry() {
+  var parts = [];
+  var trunk = new THREE.CylinderGeometry(0.06, 0.16, 2.6, 6);
+  trunk.translate(0, 1.3, 0);
+  parts.push({ geo: trunk, color: [0.25, 0.18, 0.12] });
+
+  var whorls = 7;
+  for (var w = 0; w < whorls; w++) {
+    var t = w / (whorls - 1);
+    var y = lerp(0.5, 2.8, t);
+    var radius = lerp(0.85, 0.15, t);
+    var cone = new THREE.ConeGeometry(radius, 0.5, 8);
+    cone.translate(0, y, 0);
+
+    var cColor;
+    if (currentSeason === 'kesa') {
+      cColor = [0.11 + t*0.05, 0.30 + t*0.08, 0.15];
+    } else if (currentSeason === 'syksy') {
+      cColor = [0.38 + t*0.1, 0.32, 0.12];
+    } else if (currentSeason === 'talvi') {
+      cColor = [0.82, 0.88, 0.90];
+    } else {
+      cColor = [0.22, 0.48 + t*0.08, 0.18];
+    }
+
+    parts.push({ geo: cone, color: cColor });
+  }
+
+  return mergeGeometriesWithColors(parts);
+}
+
+function makeBirchTreeGeometry() {
+  var parts = [];
+  var trunk = new THREE.CylinderGeometry(0.06, 0.13, 2.4, 7);
+  trunk.translate(0, 1.2, 0);
+  parts.push({ geo: trunk, color: [0.88, 0.88, 0.82] });
+
+  var baseKnots = new THREE.CylinderGeometry(0.135, 0.14, 0.5, 7);
+  baseKnots.translate(0, 0.25, 0);
+  parts.push({ geo: baseKnots, color: [0.15, 0.12, 0.10] });
+
+  var branchCount = 6;
+  var leafCol;
+  if (currentSeason === 'kesa') {
+    leafCol = [0.22, 0.52, 0.14];
+  } else if (currentSeason === 'syksy') {
+    leafCol = [0.85, 0.55, 0.08];
+  } else if (currentSeason === 'talvi') {
+    leafCol = [0.72, 0.78, 0.80];
+  } else {
+    leafCol = [0.45, 0.72, 0.20];
+  }
+
+  for (var b = 0; b < branchCount; b++) {
+    var bt = b / branchCount;
+    var by = 1.0 + bt * 1.5;
+    var angle = b * 2.3;
+    var bx = Math.cos(angle) * 0.35;
+    var bz = Math.sin(angle) * 0.35;
+
+    var bGeo = new THREE.CylinderGeometry(0.02, 0.04, 0.6, 5);
+    bGeo.rotateZ(0.6);
+    bGeo.rotateY(angle);
+    bGeo.translate(bx*0.5, by, bz*0.5);
+    parts.push({ geo: bGeo, color: [0.20, 0.16, 0.12] });
+
+    var crown = new THREE.DodecahedronGeometry(0.35 + (1 - bt)*0.2, 1);
+    crown.translate(bx*1.2, by + 0.2, bz*1.2);
+    parts.push({ geo: crown, color: leafCol });
+  }
+
+  return mergeGeometriesWithColors(parts);
+}
+
 function buildForest(track, bounds){
-  var treeGeo=makeTreeGeometry();
-  var desired=550+Math.floor(Math.random()*300);
-  var maxAttempts=desired*6;
-  var accepted=[];
-  var halfSize=bounds.size/2*0.92;
-  var exclR=ROAD_HALF_WIDTH+CURB_WIDTH+2.5;
-  var attempts=0;
-  while(accepted.length<desired && attempts<maxAttempts){
+  var treeGeo;
+  if (currentEnvironment === 'palmu') {
+    treeGeo = makePalmTreeGeometry();
+  } else if (currentEnvironment === 'kuusi') {
+    treeGeo = makeSpruceTreeGeometry();
+  } else if (currentEnvironment === 'koivu') {
+    treeGeo = makeBirchTreeGeometry();
+  } else {
+    treeGeo = makeSimpleTreeGeometry();
+  }
+
+  var desired = 550 + Math.floor(Math.random()*300);
+  var maxAttempts = desired * 6;
+  var accepted = [];
+  var halfSize = bounds.size/2 * 0.92;
+  var exclR = ROAD_HALF_WIDTH + CURB_WIDTH + 2.5;
+  var attempts = 0;
+
+  while(accepted.length < desired && attempts < maxAttempts){
     attempts++;
-    var x=bounds.cx+(Math.random()*2-1)*halfSize;
-    var z=bounds.cz+(Math.random()*2-1)*halfSize;
-    var info=closestSampleInfo(track, x, z);
-    if(info.dist<exclR) continue;
+    var x = bounds.cx + (Math.random()*2 - 1)*halfSize;
+    var z = bounds.cz + (Math.random()*2 - 1)*halfSize;
+    var info = closestSampleInfo(track, x, z);
+    if(info.dist < exclR) continue;
     accepted.push({ x:x, z:z });
   }
-  var inst=new THREE.InstancedMesh(treeGeo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.9 }), accepted.length);
-  var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), col=new THREE.Color(), euler=new THREE.Euler();
-  for(var i=0;i<accepted.length;i++){
-    var p=accepted[i];
-    var y=terrainSample(track, p.x, p.z).y;
+
+  var treeMat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.85 });
+
+  var inst = new THREE.InstancedMesh(treeGeo, treeMat, accepted.length);
+  var m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color(), euler = new THREE.Euler();
+
+  for(var i=0; i<accepted.length; i++){
+    var p = accepted[i];
+    var y = terrainSample(track, p.x, p.z).y;
     euler.set(0, Math.random()*Math.PI*2, 0);
     q.setFromEuler(euler);
-    var s=0.75+Math.random()*0.9;
-    m4.compose(new THREE.Vector3(p.x,y,p.z), q, new THREE.Vector3(s, s*(0.9+Math.random()*0.3), s));
+    var s = 0.75 + Math.random()*0.9;
+    m4.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, s*(0.9+Math.random()*0.3), s));
     inst.setMatrixAt(i, m4);
-    var tint=0.85+Math.random()*0.3;
-    col.setRGB(tint,tint,tint);
+    var tint = 0.88 + Math.random()*0.24;
+    col.setRGB(tint, tint, tint);
     inst.setColorAt(i, col);
   }
-  inst.instanceMatrix.needsUpdate=true;
-  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
-  inst.castShadow=true; inst.receiveShadow=true;
+
+  inst.instanceMatrix.needsUpdate = true;
+  if(inst.instanceColor) inst.instanceColor.needsUpdate = true;
+  inst.castShadow = true; inst.receiveShadow = true;
   return inst;
 }
 
-function buildCarMesh(bodyColorHex, accentColorHex) {
+function buildCarMesh(bodyColorHex, accentColorHex, carTexUrl) {
   var carGroup = new THREE.Group();
   
   var bodyGeo = new THREE.BoxGeometry(1.7, 0.5, 3.4);
   bodyGeo.translate(0, 0.45, 0);
-  var bodyMat = new THREE.MeshStandardMaterial({ color: bodyColorHex, roughness: 0.3, metalness: 0.3 });
+  
+  var bodyMat = new THREE.MeshStandardMaterial({
+    color: bodyColorHex,
+    roughness: 0.3,
+    metalness: 0.3
+  });
+
+  if (texturesEnabled && carTexUrl) {
+    var carTex = loadTextureWithFallback(carTexUrl, 1, 1, bodyColorHex, 'AUTOTEX');
+    if (carTex) bodyMat.map = carTex;
+  }
+
   var bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
   bodyMesh.castShadow = true;
   carGroup.add(bodyMesh);
@@ -1121,7 +1907,7 @@ function buildCarMesh(bodyColorHex, accentColorHex) {
 
   var spoilerGeo = new THREE.BoxGeometry(1.6, 0.08, 0.45);
   spoilerGeo.translate(0, 1.22, -1.5);
-  var accentMat = new THREE.MeshStandardMaterial({ color: accentColorHex, roughness: 0.4 });
+  var accentMat = new THREE.MeshStandardMaterial({ color: accentColorHex || 0x111111, roughness: 0.4 });
   var spoilerMesh = new THREE.Mesh(spoilerGeo, accentMat);
   spoilerMesh.castShadow = true;
   carGroup.add(spoilerMesh);
@@ -1151,6 +1937,21 @@ function buildCarMesh(bodyColorHex, accentColorHex) {
   var hl2 = hl1.clone(); hl2.position.x = 0.5;
   carGroup.add(hl1); carGroup.add(hl2);
 
+  var spot1 = new THREE.SpotLight(0xfff5cc, 2.5, 45, Math.PI/6, 0.4);
+  spot1.position.set(-0.5, 0.52, 1.75);
+  spot1.target.position.set(-0.5, 0.1, 15);
+  spot1.visible = (currentTimeOfDay === 'yo');
+  carGroup.add(spot1); carGroup.add(spot1.target);
+
+  var spot2 = new THREE.SpotLight(0xfff5cc, 2.5, 45, Math.PI/6, 0.4);
+  spot2.position.set(0.5, 0.52, 1.75);
+  spot2.target.position.set(0.5, 0.1, 15);
+  spot2.visible = (currentTimeOfDay === 'yo');
+  carGroup.add(spot2); carGroup.add(spot2.target);
+
+  carGroup.userData.headlight1 = spot1;
+  carGroup.userData.headlight2 = spot2;
+
   var tailLightMat = new THREE.MeshBasicMaterial({ color: 0xff1100 });
   var tl1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.1), tailLightMat);
   tl1.position.set(-0.5, 0.55, -1.71);
@@ -1161,7 +1962,196 @@ function buildCarMesh(bodyColorHex, accentColorHex) {
 }
 
 /* ---------------------------------------------------------------
-   OHJAIMET, KISA JA KOSKETUSNÄYTTÖ (TOUCH)
+   PELAAJIEN ASETUKSET & MODAALI IKKUNA
+--------------------------------------------------------------- */
+var playerConfigs = [
+  { name: "Pelaaja 1", ctrl: "keyboard", color: "#d42419", texIdx: 0 },
+  { name: "Pelaaja 2", ctrl: "keyboard", color: "#28a745", texIdx: 1 },
+  { name: "Pelaaja 3", ctrl: "keyboard", color: "#eb8b00", texIdx: 2 },
+  { name: "Pelaaja 4", ctrl: "keyboard", color: "#8e24aa", texIdx: 3 }
+];
+
+var previewScenes = [];
+
+function clearPreviews() {
+  previewScenes.forEach(function(ps) {
+    ps.active = false;
+    if(ps.renderer) ps.renderer.dispose();
+  });
+  previewScenes = [];
+}
+
+function initPlayerPreviews() {
+  clearPreviews();
+
+  var container = document.getElementById('modalCardsContainer');
+  container.innerHTML = "";
+
+  var defaultKbLabels = ["WASD", "Nuolet", "TFGH", "IJKL"];
+
+  for(var i = 0; i < numPlayers; i++) {
+    var pNum = i + 1;
+    var cfg = playerConfigs[i];
+
+    var card = document.createElement('div');
+    card.className = 'player-card';
+
+    var html = '<div class="player-card-header">🏎️ Pelaaja ' + pNum + '</div>';
+    html += '<div class="car-preview-box" id="previewBox' + i + '"></div>';
+    
+    html += '<div class="ctrl-group">';
+    html += '<label>✏️ Nimi:</label>';
+    html += '<input type="text" class="player-name-input" data-player="' + i + '" value="' + cfg.name + '" maxlength="14">';
+    html += '</div>';
+
+    html += '<div class="ctrl-group">';
+    html += '<label>🎮 Ohjain:</label>';
+    html += '<select class="ctrl-select" data-player="' + i + '">';
+    html += '<option value="keyboard"' + (cfg.ctrl === 'keyboard' ? ' selected' : '') + '>⌨️ Näppäimistö (' + defaultKbLabels[i] + ')</option>';
+    html += '<option value="touch"' + (cfg.ctrl === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö</option>';
+    html += '<option value="gamepad0"' + (cfg.ctrl === 'gamepad0' ? ' selected' : '') + '>🕹️ Gamepad 1</option>';
+    html += '<option value="gamepad1"' + (cfg.ctrl === 'gamepad1' ? ' selected' : '') + '>🕹️ Gamepad 2</option>';
+    html += '<option value="gamepad2"' + (cfg.ctrl === 'gamepad2' ? ' selected' : '') + '>🕹️ Gamepad 3</option>';
+    html += '<option value="gamepad3"' + (cfg.ctrl === 'gamepad3' ? ' selected' : '') + '>🕹️ Gamepad 4</option>';
+    html += '<option value="mouse"' + (cfg.ctrl === 'mouse' ? ' selected' : '') + '>🖱️ Hiiri</option>';
+    html += '<option value="bluetooth"' + (cfg.ctrl === 'bluetooth' ? ' selected' : '') + '>📶 Bluetooth-laite</option>';
+    html += '</select>';
+    html += '</div>';
+
+    html += '<div class="ctrl-group color-picker-row">';
+    html += '<label>🎨 Auton väri:</label>';
+    html += '<input type="color" class="car-color-picker" data-player="' + i + '" value="' + cfg.color + '">';
+    html += '</div>';
+
+    html += '<div class="ctrl-group">';
+    html += '<label>🖼️ Auton tekstuuri:</label>';
+    html += '<select class="car-tex-select" data-player="' + i + '">';
+    CAR_TEXTURE_PATHS.forEach(function(tp, idx) {
+      html += '<option value="' + idx + '"' + (cfg.texIdx === idx ? ' selected' : '') + '>' + tp.name + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+
+    card.innerHTML = html;
+    container.appendChild(card);
+
+    setupPreviewCanvas(i, cfg);
+  }
+
+  container.querySelectorAll('.player-name-input').forEach(function(inp) {
+    inp.addEventListener('input', function(e) {
+      var pIdx = parseInt(e.target.getAttribute('data-player'));
+      playerConfigs[pIdx].name = e.target.value;
+    });
+  });
+
+  container.querySelectorAll('.ctrl-select').forEach(function(sel) {
+    sel.addEventListener('change', function(e) {
+      var pIdx = parseInt(e.target.getAttribute('data-player'));
+      playerConfigs[pIdx].ctrl = e.target.value;
+    });
+  });
+
+  container.querySelectorAll('.car-color-picker').forEach(function(cp) {
+    cp.addEventListener('input', function(e) {
+      var pIdx = parseInt(e.target.getAttribute('data-player'));
+      playerConfigs[pIdx].color = e.target.value;
+      updatePreviewMesh(pIdx);
+    });
+  });
+
+  container.querySelectorAll('.car-tex-select').forEach(function(ts) {
+    ts.addEventListener('change', function(e) {
+      var pIdx = parseInt(e.target.getAttribute('data-player'));
+      playerConfigs[pIdx].texIdx = parseInt(e.target.value);
+      updatePreviewMesh(pIdx);
+    });
+  });
+}
+
+function setupPreviewCanvas(playerIdx, cfg) {
+  var box = document.getElementById('previewBox' + playerIdx);
+  if (!box) return;
+
+  var w = box.clientWidth || 220;
+  var h = box.clientHeight || 130;
+
+  var pScene = new THREE.Scene();
+  pScene.background = new THREE.Color(0x1e293b);
+
+  var pCam = new THREE.PerspectiveCamera(40, w / h, 0.1, 50);
+  pCam.position.set(3.6, 2.2, 4.4);
+  pCam.lookAt(0, 0.5, 0);
+
+  var pLight = new THREE.DirectionalLight(0xffffff, 1.8);
+  pLight.position.set(6, 10, 6);
+  pScene.add(pLight);
+  pScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+  var pRenderer = new THREE.WebGLRenderer({ antialias: true });
+  pRenderer.setSize(w, h);
+  pRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  box.appendChild(pRenderer.domElement);
+
+  var carTexUrl = CAR_TEXTURE_PATHS[cfg.texIdx] ? CAR_TEXTURE_PATHS[cfg.texIdx].url : '';
+  var carMesh = buildCarMesh(cfg.color, '#ffffff', carTexUrl);
+  pScene.add(carMesh);
+
+  var pData = {
+    active: true,
+    renderer: pRenderer,
+    scene: pScene,
+    camera: pCam,
+    carMesh: carMesh,
+    playerIdx: playerIdx,
+    box: box
+  };
+  previewScenes.push(pData);
+}
+
+function updatePreviewMesh(pIdx) {
+  var ps = previewScenes.find(function(p) { return p.playerIdx === pIdx; });
+  if (!ps) return;
+  ps.scene.remove(ps.carMesh);
+
+  var cfg = playerConfigs[pIdx];
+  var carTexUrl = CAR_TEXTURE_PATHS[cfg.texIdx] ? CAR_TEXTURE_PATHS[cfg.texIdx].url : '';
+  ps.carMesh = buildCarMesh(cfg.color, '#ffffff', carTexUrl);
+  ps.scene.add(ps.carMesh);
+}
+
+function renderPreviewsAnimation() {
+  previewScenes.forEach(function(ps) {
+    if (ps.active && ps.carMesh && ps.renderer) {
+      if(ps.box && ps.box.clientWidth > 0 && ps.box.clientHeight > 0) {
+        var bw = ps.box.clientWidth, bh = ps.box.clientHeight;
+        if (ps.renderer.domElement.width !== bw || ps.renderer.domElement.height !== bh) {
+          ps.renderer.setSize(bw, bh);
+          ps.camera.aspect = bw / bh;
+          ps.camera.updateProjectionMatrix();
+        }
+      }
+      ps.carMesh.rotation.y += 0.015;
+      ps.renderer.render(ps.scene, ps.camera);
+    }
+  });
+}
+
+/* MODAALIN AVAUS / SULKU */
+var playerModal = document.getElementById('playerModal');
+document.getElementById('openPlayersModalBtn').addEventListener('click', function() {
+  playerModal.style.display = 'flex';
+  setTimeout(function() {
+    initPlayerPreviews();
+  }, 20);
+});
+document.getElementById('closeModalBtn').addEventListener('click', function() {
+  playerModal.style.display = 'none';
+  clearPreviews();
+});
+
+/* ---------------------------------------------------------------
+   OHJAIMET JA SYÖTTEET
 --------------------------------------------------------------- */
 var isRacing = false;
 var isCountdown = false;
@@ -1175,9 +2165,6 @@ var finishCounter = 0;
 var stereoActive = false;
 var stereoEyeDist = 0.15;
 var stereoImageOffset = 0;
-
-var playerControlTypes = ['keyboard', 'keyboard', 'keyboard', 'keyboard'];
-var playerNames = ["Pelaaja 1", "Pelaaja 2", "Pelaaja 3", "Pelaaja 4"];
 
 var cars = [];
 
@@ -1274,11 +2261,11 @@ document.getElementById('btPairBtn').addEventListener('click', function(){
         alert("Bluetooth-yhdistäminen peruutettiin tai ei tuettu: " + err);
       });
   } else {
-    alert("⚠️ Liitä Bluetooth-näppäimistö, gamepad tai hiiri laitteesi asetuksista, niin peli tunnistaa sen automaattisesti!");
+    alert("⚠️ Liitä Bluetooth-näppäimistö, gamepad tai hiiri laitteesi asetuksista!");
   }
 });
 
-/* STEREO 3D PANIKKEET JA SÄÄTIMET */
+/* STEREO 3D SÄÄTIMET */
 var stereoBtn = document.getElementById('stereoBtn');
 var stereoControls = document.getElementById('stereoControls');
 var eyeDistSlider = document.getElementById('eyeDistSlider');
@@ -1302,7 +2289,7 @@ imgOffsetSlider.addEventListener('input', function(e){
   imgOffsetVal.innerText = stereoImageOffset + "px";
 });
 
-/* KOSKETUSNÄYTÖN VIRTUAALINAPPIEN SIDONTA */
+/* KOSKETUSNÄYTÖN NAPEIKKO */
 function bindTouchBtn(btnEl, playerIdx, action) {
   function setAction(active, e) {
     if(e) e.preventDefault();
@@ -1315,7 +2302,6 @@ function bindTouchBtn(btnEl, playerIdx, action) {
   btnEl.addEventListener('pointerleave', function(e){ setAction(false, e); });
 }
 
-// Sidotaan kaikkien 4 pelaajan mahdolliset virtuaalinapit
 for(var i = 0; i < 4; i++) {
   var pContainer = document.getElementById('touchP' + (i + 1));
   if(pContainer) {
@@ -1347,7 +2333,7 @@ function getGamepadInputs(gpIndex) {
 }
 
 function getPlayerControls(playerIndex) {
-  var ctrlType = playerControlTypes[playerIndex] || 'keyboard';
+  var ctrlType = playerConfigs[playerIndex] ? playerConfigs[playerIndex].ctrl : 'keyboard';
 
   if(ctrlType === 'touch') {
     return touchInputState[playerIndex];
@@ -1393,58 +2379,6 @@ lapsInput.addEventListener('change', function(){
   lapsInput.value = targetLaps;
 });
 
-function renderPlayerControlSelectors() {
-  var container = document.getElementById('playerControlsConfig');
-  var html = "";
-
-  var defaultKbLabels = ["WASD", "Nuolet", "TFGH", "IJKL"];
-
-  for(var i = 0; i < numPlayers; i++) {
-    var pNum = i + 1;
-    var currentType = playerControlTypes[i] || 'keyboard';
-    var currentName = playerNames[i] || ("Pelaaja " + pNum);
-
-    html += '<div class="ctrl-card">';
-    html += '<div class="ctrl-group">';
-    html += '<label>✏️ Pelaajan ' + pNum + ' nimi:</label>';
-    html += '<input type="text" class="player-name-input" data-player="' + i + '" value="' + currentName + '" maxlength="14">';
-    html += '</div>';
-
-    html += '<div class="ctrl-group">';
-    html += '<label>🎮 Ohjain:</label>';
-    html += '<select class="ctrl-select" data-player="' + i + '">';
-    html += '<option value="keyboard"' + (currentType === 'keyboard' ? ' selected' : '') + '>⌨️ Näppäimistö (' + defaultKbLabels[i] + ')</option>';
-    html += '<option value="touch"' + (currentType === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö (Virtuaalinapit)</option>';
-    html += '<option value="gamepad0"' + (currentType === 'gamepad0' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 1</option>';
-    html += '<option value="gamepad1"' + (currentType === 'gamepad1' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 2</option>';
-    html += '<option value="gamepad2"' + (currentType === 'gamepad2' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 3</option>';
-    html += '<option value="gamepad3"' + (currentType === 'gamepad3' ? ' selected' : '') + '>🕹️ Bluetooth / USB Gamepad 4</option>';
-    html += '<option value="mouse"' + (currentType === 'mouse' ? ' selected' : '') + '>🖱️ Hiiri (Klikkaus & liike)</option>';
-    html += '<option value="bluetooth"' + (currentType === 'bluetooth' ? ' selected' : '') + '>📶 Erillinen Bluetooth-laite</option>';
-    html += '</select>';
-    html += '</div>';
-    html += '</div>';
-  }
-
-  container.innerHTML = html;
-
-  var nameInputs = container.querySelectorAll('.player-name-input');
-  nameInputs.forEach(function(inp) {
-    inp.addEventListener('input', function(e) {
-      var pIdx = parseInt(e.target.getAttribute('data-player'));
-      playerNames[pIdx] = e.target.value;
-    });
-  });
-
-  var selects = container.querySelectorAll('.ctrl-select');
-  selects.forEach(function(sel) {
-    sel.addEventListener('change', function(e) {
-      var pIdx = parseInt(e.target.getAttribute('data-player'));
-      playerControlTypes[pIdx] = e.target.value;
-    });
-  });
-}
-
 compInput.addEventListener('change', function(){
   var val = parseInt(compInput.value) || 1;
   numCompetitors = THREE.MathUtils.clamp(val, 1, 8);
@@ -1452,7 +2386,6 @@ compInput.addEventListener('change', function(){
   if(numPlayers > numCompetitors) {
     numPlayers = numCompetitors;
     playInput.value = numPlayers;
-    renderPlayerControlSelectors();
   }
 });
 
@@ -1473,43 +2406,71 @@ playInput.addEventListener('change', function(){
     stereoBtn.classList.remove('active');
     stereoControls.style.display = 'none';
   }
-
-  renderPlayerControlSelectors();
 });
-
-renderPlayerControlSelectors();
 
 function createCars() {
   for(var i = 0; i < cars.length; i++) {
+    if(cars[i].engineAudio) {
+      cars[i].engineAudio.pause();
+      cars[i].engineAudio = null;
+    }
     if(cars[i].mesh) scene.remove(cars[i].mesh);
   }
   cars = [];
 
   var aiCounter = 1;
 
-  for(var i = 0; i < numCompetitors; i++) {
-    var palette = CAR_PALETTES[i];
-    var isPlayerCar = (i < numPlayers);
+  var usedColors = playerConfigs.slice(0, numPlayers).map(function(c){ return c.color; });
+  var usedTextures = playerConfigs.slice(0, numPlayers).map(function(c){ return c.texIdx; });
 
-    var carName = "";
+  var availColors = PRESET_PALETTES.filter(function(c){ return usedColors.indexOf(c) === -1; });
+  if (availColors.length === 0) availColors = PRESET_PALETTES.slice();
+
+  var availTextures = [];
+  for (var t = 0; t < CAR_TEXTURE_PATHS.length; t++) {
+    if (usedTextures.indexOf(t) === -1) availTextures.push(t);
+  }
+  if (availTextures.length === 0) availTextures = [0];
+
+  for(var i = 0; i < numCompetitors; i++) {
+    var isPlayerCar = (i < numPlayers);
+    var carName = "", carColor = "", carTexIdx = 0;
+
     if(isPlayerCar) {
-      carName = (playerNames[i] && playerNames[i].trim() !== "") ? playerNames[i].trim() : ("Pelaaja " + (i + 1));
+      var cfg = playerConfigs[i];
+      carName = (cfg.name && cfg.name.trim() !== "") ? cfg.name.trim() : ("Pelaaja " + (i + 1));
+      carColor = cfg.color;
+      carTexIdx = cfg.texIdx;
     } else {
       carName = "Tietokone " + aiCounter;
       aiCounter++;
+      carColor = availColors[(i - numPlayers) % availColors.length];
+      carTexIdx = availTextures[(i - numPlayers) % availTextures.length];
     }
 
-    var mesh = buildCarMesh(palette.color, palette.accent);
+    var carTexUrl = CAR_TEXTURE_PATHS[carTexIdx] ? CAR_TEXTURE_PATHS[carTexIdx].url : '';
+    var mesh = buildCarMesh(carColor, '#111111', carTexUrl);
     scene.add(mesh);
+
+    var engineAudioObj = null;
+    if (isPlayerCar) {
+      engineAudioObj = new Audio('moottori.mp3');
+      engineAudioObj.loop = true;
+      engineAudioObj.volume = 0;
+      engineAudioObj.playbackRate = 1.0;
+    }
 
     cars.push({
       id: i,
       name: carName,
-      colorHex: palette.color,
-      colorCss: palette.hexCss,
+      colorHex: carColor,
+      colorCss: carColor,
       isHuman: isPlayerCar,
       playerNum: isPlayerCar ? (i + 1) : 0,
       mesh: mesh,
+      engineAudio: engineAudioObj,
+      headlight1: mesh.userData.headlight1,
+      headlight2: mesh.userData.headlight2,
       x: 0, y: 0, z: 0, angle: 0, speed: 0,
       progress: 0, prevProgress: 0, totalDist: 0,
       aiSpeed: 16.5 + Math.random() * 3.5,
@@ -1588,7 +2549,8 @@ function positionTouchControls() {
   if(!isRacing) return;
 
   for(var i = 0; i < numPlayers; i++) {
-    if(playerControlTypes[i] === 'touch' && !cars[i].finished) {
+    var ctrlType = playerConfigs[i] ? playerConfigs[i].ctrl : 'keyboard';
+    if(ctrlType === 'touch' && !cars[i].finished) {
       var el = tContainers[i];
       el.style.display = 'block';
 
@@ -1621,7 +2583,7 @@ function updateHudUI() {
     if (!hudBox) continue;
 
     if (c) {
-      var html = '<h3 style="color:' + CAR_PALETTES[i].hexCss + ';">' + pIcons[i] + ' ' + c.name + '</h3>';
+      var html = '<h3 style="color:' + c.colorCss + ';">' + pIcons[i] + ' ' + c.name + '</h3>';
       if (c.finished) {
         html += '<div style="font-size:0.85rem; font-weight:800; color:#28a745; margin:4px 0;">🏁 MAALISSA!</div>';
         html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#d4611f;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
@@ -1671,10 +2633,10 @@ function startCountdown() {
   isCountdown = true;
 
   var steps = [
-    { text: '3', color: '#ffc107', delay: 0 },
-    { text: '2', color: '#ff9800', delay: 1000 },
-    { text: '1', color: '#f44336', delay: 2000 },
-    { text: 'GO!', color: '#28a745', delay: 3000 }
+    { text: '3', color: '#ffc107', delay: 0, fx: 'beep' },
+    { text: '2', color: '#ff9800', delay: 1000, fx: 'beep' },
+    { text: '1', color: '#f44336', delay: 2000, fx: 'beep' },
+    { text: 'GO!', color: '#28a745', delay: 3000, fx: 'go' }
   ];
 
   clearCountdownTimeouts();
@@ -1682,6 +2644,7 @@ function startCountdown() {
   steps.forEach(function(s) {
     var t = setTimeout(function() {
       if (!isRacing) return;
+      playFX(s.fx);
       overlay.textContent = s.text;
       overlay.style.color = s.color;
       overlay.classList.remove('countdown-pop');
@@ -1690,6 +2653,12 @@ function startCountdown() {
 
       if (s.text === 'GO!') {
         isCountdown = false;
+        cars.forEach(function(c) {
+          if (c.engineAudio) {
+            c.engineAudio.currentTime = 0;
+            c.engineAudio.play().catch(function(){});
+          }
+        });
       }
     }, s.delay);
     countdownTimeouts.push(t);
@@ -1704,6 +2673,7 @@ function startCountdown() {
 function initRace(){
   if(!currentTrack) return;
 
+  tryPlayMusic();
   finishCounter = 0;
   createCars();
 
@@ -1784,10 +2754,13 @@ function stopRace(){
   document.getElementById('ui').style.display = 'block';
 
   for(var i = 0; i < cars.length; i++) {
+    if(cars[i].engineAudio) {
+      cars[i].engineAudio.pause();
+      cars[i].engineAudio.currentTime = 0;
+    }
     if(cars[i].mesh) cars[i].mesh.visible = false;
   }
 
-  // Nollataan kosketusohjaimet
   for(var i=0; i<4; i++) {
     touchInputState[i] = { gas:false, brake:false, left:false, right:false };
   }
@@ -1812,16 +2785,19 @@ function updatePhysics(delta){
       var c = cars[i];
       c.mesh.position.set(c.x, c.y, c.z);
       c.mesh.rotation.y = c.angle;
+      if (c.engineAudio) c.engineAudio.volume = 0;
     }
     updateCameras();
     return;
   }
 
-  // --- AUTOJEN PÄIVITYS ---
   for(var i = 0; i < cars.length; i++) {
     var c = cars[i];
 
-    if (c.finished) continue;
+    if (c.finished) {
+      if (c.engineAudio) c.engineAudio.volume = 0;
+      continue;
+    }
 
     if(c.isHuman) {
       var inp = getPlayerControls(i);
@@ -1836,6 +2812,17 @@ function updatePhysics(delta){
 
       c.speed = THREE.MathUtils.clamp(c.speed, -12, maxSpeed);
 
+      /* MOOTTORIÄÄNEN SÄVELKORKEUS JA SOITTO */
+      if (c.engineAudio) {
+        c.engineAudio.volume = fxVolume;
+        if (inp.gas && c.speed > 0) {
+          var speedRatio = Math.min(1.0, Math.max(0, c.speed / maxSpeed));
+          c.engineAudio.playbackRate = 1.0 + speedRatio * 0.85;
+        } else {
+          c.engineAudio.playbackRate = 1.0;
+        }
+      }
+
       var turnSpeed = 2.3;
       if(Math.abs(c.speed) > 0.5) {
         var dirFactor = c.speed > 0 ? 1 : -1;
@@ -1849,6 +2836,15 @@ function updatePhysics(delta){
       var trackInfo = closestSampleInfo(currentTrack, nextX, nextZ);
       var maxLatDistance = ROAD_HALF_WIDTH + CURB_WIDTH - 0.45;
 
+      var isOnSand = (trackInfo.sample.surface === 1) || (Math.abs(trackInfo.latDist) > ROAD_HALF_WIDTH);
+      if (isOnSand) {
+        c.speed *= (1.0 - 0.16 * delta);
+        if (Math.abs(c.speed) > 4.0) {
+          if (Math.random() < 0.65) spawnDustParticles(nextX, c.y, nextZ, 2);
+          if (Math.random() < 0.12) playFX('sand');
+        }
+      }
+
       if(Math.abs(trackInfo.latDist) > maxLatDistance) {
         var sign = trackInfo.latDist > 0 ? 1 : -1;
         var s = trackInfo.sample;
@@ -1857,6 +2853,21 @@ function updatePhysics(delta){
         nextX = s.x + perpX * (maxLatDistance * sign);
         nextZ = s.z + perpZ * (maxLatDistance * sign);
         c.speed *= 0.6;
+      }
+
+      if (waterEnabled) {
+        for (var p = 0; p < puddlesList.length; p++) {
+          var pud = puddlesList[p];
+          var pdx = nextX - pud.x, pdz = nextZ - pud.z;
+          var pdist = Math.sqrt(pdx*pdx + pdz*pdz);
+          if (pdist < pud.radius) {
+            c.speed *= (1.0 - 0.22 * delta);
+            if (Math.abs(c.speed) > 5.0 && Math.random() < 0.6) {
+              spawnSplashParticles(nextX, c.y, nextZ, 3);
+            }
+            break;
+          }
+        }
       }
 
       c.x = nextX;
@@ -1885,14 +2896,17 @@ function updatePhysics(delta){
           c.finished = true;
           c.finishRank = ++finishCounter;
           c.mesh.visible = false;
-          positionTouchControls(); // Piilotetaan maaliintulleen pelaajan kosketusnäppäimet
+          if (c.engineAudio) {
+            c.engineAudio.pause();
+          }
+          playFX('finish');
+          positionTouchControls();
         }
       }
       c.lastSampleIdx = currentSampleIdx;
       c.totalDist = c.laps * currentTrack.totalLength + (currentSampleIdx / n) * currentTrack.totalLength;
 
     } else {
-      // TEKOÄLY-AUTOT
       var trackLen = currentTrack.totalLength;
       c.progress += (c.aiSpeed * delta) / trackLen;
       if(c.progress > 1) c.progress -= 1;
@@ -1910,6 +2924,22 @@ function updatePhysics(delta){
       c.z = aiPos.z;
       c.y = getRoadSurfaceHeight(currentTrack, c.x, c.z);
       c.angle = Math.atan2(aiDir.x, aiDir.z);
+
+      var aiTrackInfo = closestSampleInfo(currentTrack, c.x, c.z);
+      if (aiTrackInfo.sample.surface === 1 && Math.random() < 0.4) {
+        spawnDustParticles(c.x, c.y, c.z, 1);
+      }
+
+      if (waterEnabled) {
+        for (var p = 0; p < puddlesList.length; p++) {
+          var pud = puddlesList[p];
+          var pdx = c.x - pud.x, pdz = c.z - pud.z;
+          if (Math.sqrt(pdx*pdx + pdz*pdz) < pud.radius && Math.random() < 0.4) {
+            spawnSplashParticles(c.x, c.y, c.z, 2);
+            break;
+          }
+        }
+      }
 
       c.mesh.position.set(c.x, c.y, c.z);
       c.mesh.lookAt(aiLook.x + aiPerp.x*laneOffset, c.y, aiLook.z + aiPerp.z*laneOffset);
@@ -1930,6 +2960,7 @@ function updatePhysics(delta){
           c.finished = true;
           c.finishRank = ++finishCounter;
           c.mesh.visible = false;
+          playFX('finish');
         }
       }
       c.prevProgress = c.progress;
@@ -1937,7 +2968,7 @@ function updatePhysics(delta){
     }
   }
 
-  // TÖRMÄYKSET AKTIIVISILLE AUTOILLE
+  // TÖRMÄYKSET
   for(var i = 0; i < cars.length; i++) {
     for(var j = i + 1; j < cars.length; j++) {
       var c1 = cars[i], c2 = cars[j];
@@ -1958,10 +2989,14 @@ function updatePhysics(delta){
         if(c2.isHuman) {
           c2.x -= nx * overlap; c2.z -= nz * overlap; c2.speed *= 0.7;
         }
+        playFX('collision');
       }
     }
   }
 
+  updateSplashParticles(delta);
+  updateDustParticles(delta);
+  updatePrecipitation(delta);
   updateHudUI();
   updateCameras();
 }
@@ -2007,6 +3042,9 @@ function disposeMesh(m){
 
 function regenerateAll(){
   stopRace();
+  updateEnvironmentAtmosphere();
+  buildClouds();
+
   noiseSeed = Math.random()*10000;
   currentHillAmp = 5.5 + Math.random()*6.5;
 
@@ -2025,6 +3063,8 @@ function regenerateAll(){
   postMesh = buildDelineators(track); scene.add(postMesh);
   forestMesh = buildForest(track, terrainInfo); scene.add(forestMesh);
   finishLineMesh = buildFinishLine(track); scene.add(finishLineMesh);
+  
+  buildPuddles(track);
 
   curbMesh.visible = curbsVisible;
   postMesh.visible = curbsVisible;
@@ -2038,7 +3078,7 @@ function regenerateAll(){
   controls.setDistance(Math.max(60, terrainInfo.size*0.55));
 
   sun.target.position.set(midX, avgY, midZ);
-  sun.position.set(midX+60, avgY+90, midZ+40);
+  sun.position.set(midX+80, avgY+45, midZ+40);
 }
 
 /* ---------------------------------------------------------------
@@ -2048,6 +3088,54 @@ document.getElementById('regenBtn').addEventListener('click', regenerateAll);
 
 document.getElementById('raceBtn').addEventListener('click', function(){
   if(isRacing) stopRace(); else initRace();
+});
+
+var timeSelect = document.getElementById('timeSelect');
+timeSelect.addEventListener('change', function(e){
+  currentTimeOfDay = e.target.value;
+  updateEnvironmentAtmosphere();
+  buildClouds();
+});
+
+var seasonSelect = document.getElementById('seasonSelect');
+seasonSelect.addEventListener('change', function(e){
+  currentSeason = e.target.value;
+  regenerateAll();
+});
+
+var envSelect = document.getElementById('envSelect');
+envSelect.addEventListener('change', function(e){
+  currentEnvironment = e.target.value;
+  regenerateAll();
+});
+
+var rainBtn = document.getElementById('rainBtn');
+var cloudsBtn = document.getElementById('cloudsBtn');
+
+rainBtn.addEventListener('click', function(e){
+  isRain = !isRain;
+  rainBtn.textContent = isRain ? '🌧️ Sade On' : '🌧️ Sade Off';
+  rainBtn.classList.toggle('active', isRain);
+
+  if (isRain && !isClouds) {
+    isClouds = true;
+    cloudsBtn.textContent = '☁️ Pilvet On';
+    cloudsBtn.classList.add('active');
+    buildClouds();
+  }
+});
+
+cloudsBtn.addEventListener('click', function(e){
+  if (isRain && isClouds) {
+    isRain = false;
+    rainBtn.textContent = '🌧️ Sade Off';
+    rainBtn.classList.remove('active');
+  }
+
+  isClouds = !isClouds;
+  cloudsBtn.textContent = isClouds ? '☁️ Pilvet On' : '☁️ Pilvet Off';
+  cloudsBtn.classList.toggle('active', isClouds);
+  buildClouds();
 });
 
 var autoRotate=false;
@@ -2071,6 +3159,20 @@ document.getElementById('curbBtn').addEventListener('click', function(e){
   e.target.classList.toggle('active', curbsVisible);
 });
 
+document.getElementById('texturesBtn').addEventListener('click', function(e){
+  texturesEnabled = !texturesEnabled;
+  e.target.textContent = texturesEnabled ? '🖼️ Tekstuurit On' : '🖼️ Tekstuurit Off';
+  e.target.classList.toggle('active', texturesEnabled);
+  regenerateAll();
+});
+
+document.getElementById('waterBtn').addEventListener('click', function(e){
+  waterEnabled = !waterEnabled;
+  e.target.textContent = waterEnabled ? '🌊 Vesi On' : '🌊 Vesi Off';
+  e.target.classList.toggle('active', waterEnabled);
+  if (currentTrack) buildPuddles(currentTrack);
+});
+
 var flyActive=false, flyT=0;
 document.getElementById('flyBtn').addEventListener('click', function(e){
   if(isRacing) stopRace();
@@ -2090,13 +3192,19 @@ setTimeout(function(){
 }, 350);
 
 /* ---------------------------------------------------------------
-   ANIMAATIOSILMUKKA (STEREO 3D & MONIPELIRENDERÖINTI)
+   ANIMAATIOSILMUKKA
 --------------------------------------------------------------- */
 var clock=new THREE.Clock();
 
 function animate(){
   requestAnimationFrame(animate);
   var delta=clock.getDelta();
+
+  renderPreviewsAnimation();
+
+  if (isClouds && cloudGroup) {
+    cloudGroup.rotation.y += delta * 0.01;
+  }
 
   var isStereoOn = stereoActive && (numPlayers === 1);
 
@@ -2208,6 +3316,8 @@ function animate(){
     camera.position.set(pos.x, pos.y + 1.8, pos.z);
     camera.lookAt(look.x, look.y + 1.4, look.z);
 
+    updatePrecipitation(delta);
+
     if(isStereoOn) {
       var w = innerWidth, h = innerHeight;
       var halfW = Math.floor(w / 2);
@@ -2238,6 +3348,7 @@ function animate(){
     }
   } else {
     controls.update(delta);
+    updatePrecipitation(delta);
 
     if(isStereoOn) {
       var w = innerWidth, h = innerHeight;
