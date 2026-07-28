@@ -1,4 +1,4 @@
-// player-controls.js - Pelaajien ohjaus- ja syötelogiikka
+// player-controls.js - Pelaajien ohjaus- ja syötelogiikka (Dynamiset Kosketusnäyttö-Joystickit)
 (function() {
   'use strict';
 
@@ -88,34 +88,100 @@
     });
   }
 
-  function bindTouchBtn(btnEl, playerIdx, action) {
-    if(!btnEl) return;
-    function setAction(active, e) {
-      if(e) e.preventDefault();
-      touchInputState[playerIdx][action] = active;
-      btnEl.classList.toggle('active', active);
+  // DYNAAMINEN KOSKETUSNÄYTTÖ-JOYSTICK PELAAJILLE
+  function bindJoystickForPlayer(playerIdx) {
+    var container = document.getElementById('touchP' + (playerIdx + 1));
+    if (!container) return;
+
+    var base = container.querySelector('.joystick-base');
+    var stick = container.querySelector('.joystick-stick');
+    if (!base || !stick) return;
+
+    var activePointerId = null;
+    var startX = 0, startY = 0;
+    var maxRadius = 55; // Joystickin liikealue pikseleinä
+
+    function handlePointerDown(e) {
+      if (activePointerId !== null) return;
+      e.preventDefault();
+      activePointerId = e.pointerId;
+
+      var rect = container.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+
+      base.style.left = startX + 'px';
+      base.style.top = startY + 'px';
+      base.style.display = 'block';
+
+      stick.style.transform = 'translate(-50%, -50%)';
+
+      try { container.setPointerCapture(e.pointerId); } catch(err){}
     }
-    btnEl.addEventListener('pointerdown', function(e){ setAction(true, e); try { btnEl.setPointerCapture(e.pointerId); } catch(err){} });
-    btnEl.addEventListener('pointerup', function(e){ setAction(false, e); });
-    btnEl.addEventListener('pointercancel', function(e){ setAction(false, e); });
-    btnEl.addEventListener('pointerleave', function(e){ setAction(false, e); });
+
+    function handlePointerMove(e) {
+      if (e.pointerId !== activePointerId) return;
+      e.preventDefault();
+
+      var rect = container.getBoundingClientRect();
+      var curX = e.clientX - rect.left;
+      var curY = e.clientY - rect.top;
+
+      var dx = curX - startX;
+      var dy = curY - startY;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+
+      var clampDx = dx;
+      var clampDy = dy;
+
+      if (dist > maxRadius) {
+        clampDx = (dx / dist) * maxRadius;
+        clampDy = (dy / dist) * maxRadius;
+      }
+
+      stick.style.transform = 'translate(calc(-50% + ' + clampDx + 'px), calc(-50% + ' + clampDy + 'px))';
+
+      var normX = clampDx / maxRadius;
+      var normY = clampDy / maxRadius;
+      var deadzone = 0.22;
+
+      touchInputState[playerIdx].left = normX < -deadzone;
+      touchInputState[playerIdx].right = normX > deadzone;
+      touchInputState[playerIdx].gas = normY < -deadzone;   // Ylös -> Kaasu
+      touchInputState[playerIdx].brake = normY > deadzone;  // Alas -> Jarru
+    }
+
+    function handlePointerUp(e) {
+      if (e.pointerId !== activePointerId) return;
+      e.preventDefault();
+      activePointerId = null;
+
+      base.style.display = 'none';
+      touchInputState[playerIdx] = { gas: false, brake: false, left: false, right: false };
+
+      try { container.releasePointerCapture(e.pointerId); } catch(err){}
+    }
+
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointercancel', handlePointerUp);
   }
 
   function bindAllTouchControls() {
     for(var i = 0; i < 4; i++) {
-      var pContainer = document.getElementById('touchP' + (i + 1));
-      if(pContainer) {
-        bindTouchBtn(pContainer.querySelector('.btn-left'), i, 'left');
-        bindTouchBtn(pContainer.querySelector('.btn-right'), i, 'right');
-        bindTouchBtn(pContainer.querySelector('.btn-brake'), i, 'brake');
-        bindTouchBtn(pContainer.querySelector('.btn-gas'), i, 'gas');
-      }
+      bindJoystickForPlayer(i);
     }
   }
 
   function resetTouchState() {
     for(var i=0; i<4; i++) {
       touchInputState[i] = { gas:false, brake:false, left:false, right:false };
+      var container = document.getElementById('touchP' + (i + 1));
+      if (container) {
+        var base = container.querySelector('.joystick-base');
+        if (base) base.style.display = 'none';
+      }
     }
   }
 
