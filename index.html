@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3D Racer — Proseduraalinen ajopeli</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#111827; font-family:'Segoe UI', system-ui, sans-serif; touch-action:none; }
+  canvas { display:block; touch-action:none; }
+
+  /* NÄYTTÄVÄ INTRO SIVU */
+  #introOverlay {
+    position:fixed; inset:0; z-index:5000;
+    background: radial-gradient(circle at center, #1e1b4b 0%, #090d16 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#ffffff; text-align:center; padding:20px; cursor:pointer;
+  }
+  #introOverlay h1 {
+    font-size: clamp(3.5rem, 10vw, 7.5rem);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #00f0ff, #ff00aa, #ffee00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 10px 40px rgba(0, 240, 255, 0.4);
+    margin-bottom: 10px;
+    animation: titleGlow 2.5s ease-in-out infinite alternate;
+  }
+  @keyframes titleGlow {
+    0% { transform: scale(0.98); filter: drop-shadow(0 0 15px rgba(0,240,255,0.6)); }
+    100% { transform: scale(1.02); filter: drop-shadow(0 0 35px rgba(255,0,170,0.8)); }
+  }
+  #introOverlay p {
+    font-size: clamp(1rem, 2.5vw, 1.6rem);
+    color: #cbd5e1;
+    font-weight: 600;
+    letter-spacing: 1px;
+    animation: pulseText 1.5s infinite alternate;
+  }
+  @keyframes pulseText {
+    0% { opacity: 0.5; }
+    100% { opacity: 1.0; }
+  }
+
+  /* PÄÄ-UI PANEELI */
+  #ui {
+    position:fixed; top:18px; left:18px; z-index:10;
+    color:#2a2f22; width:340px; max-height:90vh; overflow-y:auto;
+    background:rgba(255,255,255,0.82);
+    backdrop-filter: blur(10px);
+    border:1px solid rgba(255,255,255,0.7);
+    border-radius:14px;
+    padding:16px;
+    box-shadow:0 8px 24px rgba(30,30,20,0.2);
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  #ui h1 { font-size:1.1rem; font-weight:700; margin-bottom:10px; color:#33301f; }
+
+  .ui-buttons-grid {
+    display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:12px;
+  }
+  .btn {
+    background:rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+    border:1px solid rgba(255,255,255,0.9); color:#33301f; font-size:0.78rem; font-weight:600;
+    padding:10px 6px; border-radius:8px; cursor:pointer; transition: all 0.15s ease;
+    box-shadow:0 3px 10px rgba(30,30,20,0.12); text-align:center;
+    touch-action: manipulation;
+  }
+  .btn:hover { background:rgba(255,255,255,1); transform:translateY(-1px); }
+  .btn:active { transform:translateY(0px) scale(0.97); }
+  .btn.active { background:#d4611f; color:#fff; }
+  .btn.race { background:#28a745; color:#fff; border-color:#28a745; grid-column: span 2; font-size:0.85rem; padding:11px; }
+  .btn.race:hover { background:#218838; }
+  .btn.career { background:#009688; color:#fff; border-color:#00796b; grid-column: span 2; font-size:0.85rem; padding:11px; }
+  .btn.career:hover { background:#00796b; }
+  .btn.players-btn { background:#0066cc; color:#fff; border-color:#0052a3; font-size:0.78rem; grid-column: span 2; }
+  .btn.players-btn:hover { background:#0052a3; }
+  .btn.env-btn { background:#6b21a8; color:#fff; border-color:#581c87; font-size:0.78rem; grid-column: span 2; }
+  .btn.env-btn:hover { background:#581c87; }
+  .btn.settings-btn { background:#475569; color:#fff; border-color:#334155; font-size:0.78rem; grid-column: span 2; }
+  .btn.settings-btn:hover { background:#334155; }
+  .btn.random-btn { background:#8e24aa; color:#fff; border-color:#7b1fa2; grid-column: span 2; font-size:0.82rem; }
+  .btn.random-btn:hover { background:#7b1fa2; }
+
+  .setting-row {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:8px; font-size:0.8rem; font-weight:600; color:#2a2f22;
+  }
+  .setting-row label { display:flex; align-items:center; gap:6px; }
+  .setting-row input[type="number"] {
+    width:54px; padding:6px 6px; border-radius:6px;
+    border:1px solid rgba(0,0,0,0.2); background:rgba(255,255,255,0.9);
+    font-size:0.85rem; font-weight:700; text-align:center; color:#2a2f22;
+    touch-action: manipulation; user-select:text; -webkit-user-select:text;
+  }
+  .setting-row input[type="range"] {
+    width:100px; cursor:pointer; touch-action: manipulation;
+  }
+
+  #stereoControls {
+    display:none; margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.12);
+  }
+
+  /* MODAALIT (PELAAJAT, ASETUKSET, YMPÄRISTÖ JA URA) */
+  #playerModal, #careerModal, #envModal, #settingsModal {
+    display:none; position:fixed; inset:0; z-index:600;
+    background:rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    align-items:center; justify-content:center; padding:16px;
+  }
+  .modal-content {
+    background:#ffffff; border-radius:16px; width:100%; max-width:960px;
+    max-height:90vh; overflow-y:auto; padding:20px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.4); display:flex; flex-direction:column; gap:16px;
+  }
+  .modal-header {
+    display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid #eee; padding-bottom:10px;
+  }
+  .modal-header h2 { font-size:1.2rem; color:#33301f; }
+  .modal-close-btn {
+    background:#e03e3e; color:#fff; border:none; border-radius:50%;
+    width:32px; height:32px; font-weight:bold; cursor:pointer; font-size:1rem;
+  }
+
+  .career-table {
+    width:100%; border-collapse:collapse; margin-top:10px; font-size:0.9rem;
+  }
+  .career-table th, .career-table td {
+    padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left;
+  }
+  .career-table th { background:#f1f5f9; color:#334155; font-weight:700; }
+  .career-table tr:hover { background:#f8fafc; }
+
+  .players-cards-container {
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap:14px; width:100%;
+  }
+  .player-card {
+    background:#f8f9fa; border:1px solid #e2e8f0; border-radius:12px;
+    padding:12px; display:flex; flex-direction:column; gap:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.05);
+  }
+  .player-card-header { font-weight:700; font-size:0.9rem; color:#1a202c; display:flex; align-items:center; gap:6px; }
+  
+  .car-preview-box {
+    width:100%; height:130px; background:#1e293b; border-radius:8px;
+    overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;
+  }
+  .car-preview-box canvas { display:block !important; width:100% !important; height:100% !important; }
+
+  .ctrl-group { display:flex; flex-direction:column; gap:3px; font-size:0.75rem; font-weight:600; color:#4a5568; }
+  .ctrl-group label { display:flex; align-items:center; gap:4px; }
+  
+  .player-name-input, .ctrl-select, .car-tex-select, .car-model-select {
+    width:100%; padding:6px 8px; border-radius:6px; border:1px solid #cbd5e1;
+    background:#fff; font-size:0.78rem; font-weight:600; color:#1e293b; outline:none;
+    touch-action: manipulation; user-select:text; -webkit-user-select:text;
+  }
+  .player-name-input:focus, .ctrl-select:focus, .car-tex-select:focus, .car-model-select:focus { border-color:#d4611f; }
+
+  .color-picker-row {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .car-color-picker {
+    -webkit-appearance:none; border:none; width:42px; height:30px;
+    border-radius:6px; cursor:pointer; background:none;
+  }
+  .car-color-picker::-webkit-color-swatch-wrapper { padding:0; }
+  .car-color-picker::-webkit-color-swatch { border:1px solid #ccc; border-radius:6px; }
+
+  #btPairBtn {
+    margin-top:4px; width:100%; background:#0066cc; color:#fff;
+    border:none; padding:10px 12px; border-radius:8px; font-size:0.78rem;
+    font-weight:700; cursor:pointer; transition: background 0.15s ease;
+    touch-action: manipulation;
+  }
+  #btPairBtn:hover { background:#0052a3; }
+
+  #exitRaceBtn {
+    display:none; position:fixed; top:12px; left:12px; z-index:300;
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(212,36,25,0.9); color:#fff; font-size:1.4rem; font-weight:bold;
+    border:2px solid #fff; cursor:pointer; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(0,0,0,0.3); transition: transform 0.15s ease;
+    touch-action: manipulation;
+  }
+  #exitRaceBtn:hover { transform: scale(1.1); background:#b81b11; }
+
+  #leaderboardBar {
+    display:none; position:fixed; top:0; left:50%; transform:translateX(-50%);
+    z-index:200; background:rgba(20,22,18,0.75); backdrop-filter: blur(8px);
+    padding:6px 18px; border-radius:0 0 12px 12px; color:#fff;
+    font-size:0.8rem; font-weight:700; border:1px solid rgba(255,255,255,0.25);
+    border-top:none; box-shadow:0 4px 16px rgba(0,0,0,0.3);
+    gap:14px; align-items:center; white-space:nowrap;
+  }
+  .lb-item { display:flex; align-items:center; gap:5px; }
+  .lb-badge { width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid #fff; }
+
+  .player-hud-box {
+    position:fixed; z-index:150; display:none;
+    background:rgba(255,255,255,0.82); backdrop-filter: blur(8px);
+    border:1px solid rgba(255,255,255,0.85); border-radius:10px;
+    padding:8px 12px; box-shadow:0 4px 14px rgba(0,0,0,0.2);
+    color:#2a2f22; font-size:0.75rem; width:185px;
+  }
+  .player-hud-box h3 { font-size:0.82rem; font-weight:700; margin-bottom:3px; }
+  .hud-row { display:flex; justify-content:space-between; margin-top:2px; }
+  .hud-val { font-weight:700; font-family:Consolas, monospace; }
+
+  .wrong-way-banner {
+    color: #ff2200;
+    font-weight: 900;
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 6px;
+    background: rgba(255, 0, 0, 0.15);
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 0, 0, 0.4);
+    animation: wrongWayFlash 0.6s infinite alternate;
+  }
+  @keyframes wrongWayFlash {
+    0% { opacity: 0.4; transform: scale(0.98); }
+    100% { opacity: 1.0; transform: scale(1.02); }
+  }
+
+  /* DYNAAMISET KOSKETUSNÄYTÖN OHJAIN-OVERLAYT */
+  .touch-controls-container {
+    position:fixed; z-index:250; display:none;
+    pointer-events:auto; touch-action:none; user-select:none;
+  }
+
+  /* 1. SUURENNETTU JOYSTICK */
+  .joystick-base {
+    position:absolute; display:none; width:150px; height:150px;
+    border-radius:50%; background:rgba(255, 255, 255, 0.25);
+    border:4px solid rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(8px); transform: translate(-50%, -50%);
+    pointer-events:none; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .joystick-stick {
+    position:absolute; top:50%; left:50%; width:65px; height:65px;
+    border-radius:50%; background:linear-gradient(135deg, #f97316, #d97706);
+    border:3px solid #ffffff; transform: translate(-50%, -50%);
+    pointer-events:none; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+
+  /* 2. RATTI & POLKIMET OHJAUS */
+  .touch-wheel-container {
+    width:100%; height:100%; inset:0;
+  }
+  .steering-wheel-ui {
+    position:absolute; bottom:24px; left:24px;
+    width:150px; height:150px; border-radius:50%;
+    border:12px solid #2d3748; background:rgba(15, 23, 42, 0.65);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.6), inset 0 0 14px rgba(255,255,255,0.2);
+    backdrop-filter: blur(8px); touch-action:none; cursor:pointer;
+    transition: transform 0.05s linear; display:flex; align-items:center; justify-content:center;
+  }
+  .wheel-inner-ring {
+    width:85px; height:85px; border-radius:50%;
+    border:5px solid #a0aec0; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.4);
+  }
+  .wheel-spoke {
+    position:absolute; background:#a0aec0; border-radius:2px;
+  }
+  .wheel-spoke.h { width:100%; height:8px; top:calc(50% - 4px); left:0; }
+  .wheel-spoke.v { width:8px; height:50%; bottom:0; left:calc(50% - 4px); }
+
+  .pedals-ui {
+    position:absolute; bottom:24px; right:24px;
+    display:flex; gap:16px; align-items:flex-end; touch-action:none;
+  }
+  .pedal-btn {
+    border-radius:10px; border:2px solid rgba(255,255,255,0.8);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-weight:900; font-size:1.1rem; color:#fff; cursor:pointer;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4); backdrop-filter: blur(6px);
+    transition: transform 0.08s ease, background 0.1s ease; touch-action:none;
+  }
+  .pedal-btn:active, .pedal-btn.active { transform:scale(0.92) translateY(4px); }
+  .brake-pedal {
+    width:70px; height:90px; background:linear-gradient(185deg, #ef4444, #991b1b);
+  }
+  .gas-pedal {
+    width:70px; height:130px; background:linear-gradient(185deg, #22c55e, #15803d);
+  }
+
+  .grid-divider { display:none; position:fixed; background:#111; z-index:100; box-shadow:0 0 8px rgba(0,0,0,0.6); }
+  #dividerH { top:50%; left:0; width:100%; height:4px; transform:translateY(-50%); }
+  #dividerV { top:0; left:50%; width:4px; height:100%; transform:translateX(-50%); }
+  #dividerVTop { top:0; left:50%; width:4px; height:50%; transform:translateX(-50%); }
+
+  #countdownOverlay {
+    position:fixed; inset:0; z-index:500;
+    display:none; align-items:center; justify-content:center;
+    font-size:8rem; font-weight:900; color:#ffffff;
+    text-shadow:0 10px 30px rgba(0,0,0,0.7), 0 0 20px rgba(0,0,0,0.5);
+    pointer-events:none; font-family:'Segoe UI', system-ui, sans-serif;
+  }
+  .countdown-pop { animation: popAnim 0.85s ease-out forwards; }
+  @keyframes popAnim {
+    0% { transform: scale(1.8); opacity: 0; }
+    25% { transform: scale(1.0); opacity: 1; }
+    75% { transform: scale(0.95); opacity: 1; }
+    100% { transform: scale(0.6); opacity: 0; }
+  }
+
+  #loading {
+    position:fixed; inset:0; background:#cdd9c6; z-index:1000;
+    display:flex; align-items:center; justify-content:center;
+    color:#33301f; font-size:1rem; letter-spacing:0.5px; transition: opacity 0.6s ease;
+  }
+  #errorBox {
+    position:fixed; top:18px; right:18px; z-index:2000; max-width:360px;
+    background:rgba(255,235,235,0.95); border:1px solid #e08a8a; color:#7a1f1f;
+    padding:14px 16px; border-radius:10px; font-size:0.8rem; line-height:1.4; display:none;
+  }
+</style>
+</head>
+<body>
+
+<!-- INTRO SIVU -->
+<div id="introOverlay">
+  <h1>3D Racer</h1>
+  <p>Paina mitä tahansa näppäintä tai ruutua aloittaaksesi</p>
+</div>
+
+<div id="loading">🏁 Rakennetaan rataa…</div>
+<div id="errorBox"></div>
+
+<button id="exitRaceBtn" title="Lopeta kisa">✕</button>
+<div id="leaderboardBar"></div>
+
+<div id="countdownOverlay">3</div>
+<div id="dividerH" class="grid-divider"></div>
+<div id="dividerV" class="grid-divider"></div>
+<div id="dividerVTop" class="grid-divider"></div>
+
+<!-- PELAAJA-HUDIT -->
+<div id="hudP1" class="player-hud-box"></div>
+<div id="hudP2" class="player-hud-box"></div>
+<div id="hudP3" class="player-hud-box"></div>
+<div id="hudP4" class="player-hud-box"></div>
+
+<!-- DYNAAMISET KOSKETUSNÄYTÖN JOYSTICK-OVERLAYT -->
+<div id="touchP1" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+<div id="touchP2" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+<div id="touchP3" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+<div id="touchP4" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+
+<!-- KOSKETUSNÄYTÖN RATTI & POLKIMET OVERLAYT -->
+<div id="touchWheelP1" class="touch-controls-container touch-wheel-container">
+  <div class="steering-wheel-ui"><div class="wheel-spoke h"></div><div class="wheel-spoke v"></div><div class="wheel-inner-ring">🏎️</div></div>
+  <div class="pedals-ui"><button class="pedal-btn brake-pedal">JARRO</button><button class="pedal-btn gas-pedal">KAASU</button></div>
+</div>
+<div id="touchWheelP2" class="touch-controls-container touch-wheel-container">
+  <div class="steering-wheel-ui"><div class="wheel-spoke h"></div><div class="wheel-spoke v"></div><div class="wheel-inner-ring">🏎️</div></div>
+  <div class="pedals-ui"><button class="pedal-btn brake-pedal">JARRO</button><button class="pedal-btn gas-pedal">KAASU</button></div>
+</div>
+<div id="touchWheelP3" class="touch-controls-container touch-wheel-container">
+  <div class="steering-wheel-ui"><div class="wheel-spoke h"></div><div class="wheel-spoke v"></div><div class="wheel-inner-ring">🏎️</div></div>
+  <div class="pedals-ui"><button class="pedal-btn brake-pedal">JARRO</button><button class="pedal-btn gas-pedal">KAASU</button></div>
+</div>
+<div id="touchWheelP4" class="touch-controls-container touch-wheel-container">
+  <div class="steering-wheel-ui"><div class="wheel-spoke h"></div><div class="wheel-spoke v"></div><div class="wheel-inner-ring">🏎️</div></div>
+  <div class="pedals-ui"><button class="pedal-btn brake-pedal">JARRO</button><button class="pedal-btn gas-pedal">KAASU</button></div>
+</div>
+
+<!-- PELAAJIEN MUOKKAUSMODAALI -->
+<div id="playerModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>🎮 Pelaajien ja autojen asetukset</h2>
+      <button class="modal-close-btn" id="closeModalBtn">✕</button>
+    </div>
+    <div class="players-cards-container" id="modalCardsContainer"></div>
+    <button id="btPairBtn">📶 Yhdistä Bluetooth-laite (Web BT)</button>
+  </div>
+</div>
+
+<!-- YMPÄRISTÖN MUOKKAUSMODAALI -->
+<div id="envModal">
+  <div class="modal-content" style="max-width:540px;">
+    <div class="modal-header">
+      <h2>🌲 Ympäristön Asetukset</h2>
+      <button class="modal-close-btn" id="closeEnvModalBtn">✕</button>
+    </div>
+    
+    <div class="setting-row">
+      <label for="timeSelect">⏰ Vuorokaudenaika:</label>
+      <select id="timeSelect" class="ctrl-select" style="width:160px;">
+        <option value="paiva" selected>☀️ Päivä</option>
+        <option value="yo">🌙 Yö</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="seasonSelect">🍂 Vuodenaika:</label>
+      <select id="seasonSelect" class="ctrl-select" style="width:160px;">
+        <option value="kesa" selected>🌿 Kesä</option>
+        <option value="syksy">🍂 Syksy</option>
+        <option value="talvi">❄️ Talvi</option>
+        <option value="kevat">🌱 Kevät</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="envSelect">🌲 Ympäristötyyppi:</label>
+      <select id="envSelect" class="ctrl-select" style="width:160px;">
+        <option value="simple" selected>🌲 Simple Kuusi</option>
+        <option value="simplekoivu">🌿 Simple Koivu</option>
+        <option value="simplepalmu">🌴 Simple Palmu</option>
+        <option value="koivu">🌿 Rauduskoivu</option>
+        <option value="palmu">🌴 Palmu</option>
+        <option value="kuusi">🌲 Kuusi</option>
+        <option value="kaupunki">🏙️ Kaupunki</option>
+        <option value="jattisieni">🍄 Jättisieni</option>
+        <option value="hitech">🏙️ Hi-Tech Kaupunki</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="musicSelect">🎵 Taustamusiikki:</label>
+      <select id="musicSelect" class="ctrl-select" style="width:160px;"></select>
+    </div>
+
+    <div class="ui-buttons-grid" style="margin-top:10px;">
+      <button class="btn active" id="treesBtn">🌲 Ympäristö On</button>
+      <button class="btn active" id="curbBtn">🚧 Reunat On</button>
+      <button class="btn active" id="texturesBtn">🖼️ Tekstuurit On</button>
+      <button class="btn active" id="waterBtn">🌊 Vesi On</button>
+      <button class="btn" id="rainBtn">🌧️ Sade Off</button>
+      <button class="btn" id="fogBtn">🌫️ Sumu Off</button>
+      <button class="btn" id="cloudsBtn" style="grid-column: span 2;">☁️ Pilvet Off</button>
+    </div>
+  </div>
+</div>
+
+<!-- ASETUKSET-MODAALI -->
+<div id="settingsModal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2>⚙️ Peliasetukset</h2>
+      <button class="modal-close-btn" id="closeSettingsModalBtn">✕</button>
+    </div>
+
+    <div class="setting-row">
+      <label for="aiDifficulty">🤖 AI Vaikeusaste:</label>
+      <select id="aiDifficulty" class="ctrl-select" style="width:140px;">
+        <option value="helppo">Helppo</option>
+        <option value="keskivaikea" selected>Keskivaikea</option>
+        <option value="hyvin vaikea">Hyvin vaikea</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="numCareerRaces">🏆 Uran kisat:</label>
+      <input type="number" id="numCareerRaces" min="2" max="20" value="6">
+    </div>
+
+    <div class="setting-row">
+      <label for="numLaps">🔄 Kierrokset (1-20):</label>
+      <input type="number" id="numLaps" min="1" max="20" value="3">
+    </div>
+
+    <div class="setting-row">
+      <label for="musicVolSlider">🔊 Musiikin voimakkuus:</label>
+      <input type="range" id="musicVolSlider" min="0" max="1" step="0.05" value="0.5">
+      <span id="musicVolVal" class="hud-val">50%</span>
+    </div>
+
+    <div class="setting-row">
+      <label for="fxVolSlider">🔊 FX Äänet:</label>
+      <input type="range" id="fxVolSlider" min="0" max="1" step="0.05" value="0.7">
+      <span id="fxVolVal" class="hud-val">70%</span>
+    </div>
+
+    <div class="ui-buttons-grid" style="margin-top:8px;">
+      <button class="btn" id="boostersBtn">⚡ Kiihdyttimet Off</button>
+      <button class="btn" id="tireWearBtn">🛞 Kuluminen Off</button>
+    </div>
+
+    <div class="setting-row" style="margin-top:10px;">
+      <label for="maxSpeedSlider">🏎️ Maksiminopeus:</label>
+      <input type="range" id="maxSpeedSlider" min="20" max="60" step="2" value="38">
+      <span id="maxSpeedVal" class="hud-val">38 km/h</span>
+    </div>
+
+    <div class="setting-row">
+      <label for="accelSlider">⚡ Kiihtyvyys:</label>
+      <input type="range" id="accelSlider" min="10" max="50" step="2" value="26">
+      <span id="accelVal" class="hud-val">26</span>
+    </div>
+  </div>
+</div>
+
+<!-- URASARJAN TULOSMODAALI -->
+<div id="careerModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>🏆 Uran Lopputulokset</h2>
+      <button class="modal-close-btn" id="closeCareerModalBtn">✕</button>
+    </div>
+    <div id="careerResultsContainer"></div>
+    <button class="btn career" id="closeCareerBtn" style="margin-top:10px;">Sulje ja palaa valikkoon</button>
+  </div>
+</div>
+
+<div id="ui">
+  <h1>🏁 Autokisaradan generaattori</h1>
+
+  <div class="setting-row">
+    <label for="numCompetitors">🏁 Kilpailijat (1-8):</label>
+    <input type="number" id="numCompetitors" min="1" max="8" value="2">
+  </div>
+
+  <div class="setting-row">
+    <label for="numPlayers">🎮 Pelaajat (1-4):</label>
+    <input type="number" id="numPlayers" min="1" max="4" value="1">
+  </div>
+
+  <div class="ui-buttons-grid">
+    <button class="btn race" id="raceBtn">🏎️ Aloita kisa</button>
+    <button class="btn career" id="careerBtn">🏆 Aloita Ura</button>
+    <button class="btn players-btn" id="openPlayersModalBtn">🎮 Pelaajat & Autot</button>
+    <button class="btn env-btn" id="openEnvModalBtn">🌲 Ympäristö</button>
+    <button class="btn random-btn" id="randomEnvBtn">🎲 Satunnaisympäristö</button>
+    <button class="btn" id="regenBtn" style="grid-column: span 2;">🔄 Uusi rata</button>
+    <button class="btn" id="flyBtn">📷 Ajolinja</button>
+    <button class="btn" id="rotateBtn">↻ Kierto</button>
+    <button class="btn settings-btn" id="openSettingsModalBtn">⚙️ Asetukset</button>
+    <button class="btn" id="stereoBtn" style="grid-column: span 2;">🥽 3D Stereo Off</button>
+  </div>
+
+  <div id="stereoControls">
+    <div class="setting-row">
+      <label for="eyeDistSlider">👁️ Silmäväli (IPD):</label>
+      <input type="range" id="eyeDistSlider" min="0.01" max="0.80" step="0.01" value="0.15">
+      <span id="eyeDistVal" class="hud-val">0.15m</span>
+    </div>
+    <div class="setting-row">
+      <label for="imgOffsetSlider">↔️ Kuvan siirtymä:</label>
+      <input type="range" id="imgOffsetSlider" min="-60" max="60" step="1" value="0">
+      <span id="imgOffsetVal" class="hud-val">0px</span>
+    </div>
+  </div>
+</div>
+
+<!-- Ladataan Three.js, audio, ohjainmoottori, generaattori, automallit, ympäristöt sekä pääohjelma (main.js) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://unpkg.com/three@0.149.0/build/three.min.js"><\/script>');
+  }
+</script>
+<script src="audio.js"></script>
+<script src="player-controls.js"></script>
+<script src="generate.js"></script>
+
+<!-- Autot -->
+<script src="porcher.js"></script>
+<script src="lotuser.js"></script>
+<script src="pontiacer.js"></script>
+<script src="lambo.js"></script>
+<script src="ferrarer.js"></script>
+
+<!-- Ympäristöt -->
+<script src="env_simple.js"></script>
+<script src="env_simplekuusi.js"></script>
+<script src="env_simplekoivu.js"></script>
+<script src="env_simplepalmu.js"></script>
+<script src="env_palmu.js"></script>
+<script src="env_kuusi.js"></script>
+<script src="env_koivu.js"></script>
+<script src="env_kaupunki.js"></script>
+<script src="env_jattisieni.js"></script>
+<script src="env_hitech.js"></script>
+
+<!-- Pääohjelman suoritus -->
+<script src="main.js"></script>
+
+</body>
+</html>
