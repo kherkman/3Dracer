@@ -17,7 +17,8 @@
     collision: 'collision.mp3',
     beep: 'beep.mp3',
     go: 'go.mp3',
-    finish: 'finish.mp3'
+    finish: 'finish.mp3',
+    jarrutus: 'jarrutus.mp3'
   };
 
   var currentMusicAudio = null;
@@ -121,7 +122,7 @@
     var isAtMaxSpeed = (speed >= maxSpeed * 0.94);
 
     if (!isGas) {
-      // Ei kaasua: Pysäytetään muut ja soitetaan moottori.mp3 (rullaus/tyhjäkäynti)
+      // Ei kaasua: moottori.mp3 loopilla
       if (carObj.accelAudio) { carObj.accelAudio.pause(); carObj.accelAudio.currentTime = 0; }
       if (carObj.maxAudio) { carObj.maxAudio.pause(); carObj.maxAudio.currentTime = 0; }
 
@@ -133,7 +134,7 @@
         carObj.idleAudio.volume = vol;
       }
     } else if (isGas && isAtMaxSpeed) {
-      // Kaasu pohjassa ja maksiminopeudessa: Soitetaan maksiminopeus.mp3 loopilla
+      // Kaasu pohjassa ja maksiminopeus: maksiminopeus.mp3 loopilla
       if (carObj.idleAudio) carObj.idleAudio.pause();
       if (carObj.accelAudio) carObj.accelAudio.pause();
 
@@ -146,7 +147,7 @@
         carObj.maxAudio.volume = vol;
       }
     } else {
-      // Kaasua painetaan ja nopeus kiihtyy: Soitetaan kiihdytys.mp3
+      // Kaasua painetaan: kiihdytys.mp3 (soitetaan kerran)
       if (carObj.idleAudio) carObj.idleAudio.pause();
       if (carObj.maxAudio) carObj.maxAudio.pause();
 
