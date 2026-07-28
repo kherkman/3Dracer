@@ -3,27 +3,32 @@
   'use strict';
 
   /* ---------------------------------------------------------------
+     MOBIILILAITTEEN TUNNISTUS
+  --------------------------------------------------------------- */
+  var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                 (('ontouchstart' in window) && (navigator.maxTouchPoints > 0));
+  var defaultControlMethod = isMobile ? "touch" : "keyboard";
+
+  /* ---------------------------------------------------------------
      GLOBAALIT MUUTTUJAT JA TILA
   --------------------------------------------------------------- */
   var texturesEnabled = true;
-  window.texturesEnabled = texturesEnabled; // Kytketään globaalisti myös muille JS-tiedostoille (automallit jne.)
+  window.texturesEnabled = texturesEnabled;
 
   var waterEnabled = true;
   var isRain = false;
-  var isFog = false; // Sumu default Off
+  var isFog = false;
   var isClouds = false;
   var currentTimeOfDay = 'paiva';
   var currentSeason = 'kesa';
   var currentEnvironment = 'simple';
-  var aiDifficulty = 'keskivaikea'; // helppo, keskivaikea, hyvin vaikea
+  var aiDifficulty = 'keskivaikea';
 
-  // Uudet asetukset: Kiihdyttimet, Kuluminen & Auton suorituskyky
   var boostersEnabled = false;
   var tireWearEnabled = false;
   var carMaxSpeedSetting = 38.0;
   var carAccelSetting = 26.0;
 
-  // Ura-tilan tilamuuttujat
   var isCareerMode = false;
   var careerCurrentRace = 0;
   var careerTotalRaces = 6;
@@ -44,21 +49,13 @@
   };
 
   var CITY_TEXTURE_PATHS = [
-    'city_tex1.jpg',
-    'city_tex2.jpg',
-    'city_tex3.jpg',
-    'city_tex4.jpg',
-    'city_tex5.jpg',
-    'city_tex6.jpg'
+    'city_tex1.jpg', 'city_tex2.jpg', 'city_tex3.jpg',
+    'city_tex4.jpg', 'city_tex5.jpg', 'city_tex6.jpg'
   ];
 
   var HITECH_TEXTURE_PATHS = [
-    'hitech_tex1.jpg',
-    'hitech_tex2.jpg',
-    'hitech_tex3.jpg',
-    'hitech_tex4.jpg',
-    'hitech_tex5.jpg',
-    'hitech_tex6.jpg'
+    'hitech_tex1.jpg', 'hitech_tex2.jpg', 'hitech_tex3.jpg',
+    'hitech_tex4.jpg', 'hitech_tex5.jpg', 'hitech_tex6.jpg'
   ];
 
   var CAR_TEXTURE_PATHS = [
@@ -87,7 +84,6 @@
     '#1e62d0', '#00acc1', '#ff6d00', '#d81b60'
   ];
 
-  // ALUSTETAAN ÄÄNIMOOTTORIN KÄYTTÖLIITTYMÄ
   if (window.AudioEngine && typeof window.AudioEngine.initUI === 'function') {
     window.AudioEngine.initUI();
   }
@@ -218,6 +214,69 @@
   });
   var puddleCubeCamera = new THREE.CubeCamera(0.1, 500, puddleCubeRenderTarget);
   scene.add(puddleCubeCamera);
+
+  /* JARRUTUSJÄLJET (SKID MARKS) - RYHMÄ */
+  var skidMarkGroup = new THREE.Group();
+  scene.add(skidMarkGroup);
+
+  var skidMarkMat = new THREE.MeshBasicMaterial({
+    color: 0x111111,
+    transparent: true,
+    opacity: 0.75,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4
+  });
+
+  function spawnSkidMarkSegment(c) {
+    if (!currentTrack) return;
+
+    var perpX = -Math.cos(c.angle);
+    var perpZ = Math.sin(c.angle);
+    var wheelWidthOffset = 0.72;
+
+    var leftX = c.x - perpX * wheelWidthOffset;
+    var leftZ = c.z - perpZ * wheelWidthOffset;
+    var leftY = getRoadSurfaceHeight(currentTrack, leftX, leftZ) + 0.035;
+
+    var rightX = c.x + perpX * wheelWidthOffset;
+    var rightZ = c.z + perpZ * wheelWidthOffset;
+    var rightY = getRoadSurfaceHeight(currentTrack, rightX, rightZ) + 0.035;
+
+    if (c.lastSkidLeft && c.lastSkidRight) {
+      // Vasen renkaanjälki
+      var geoL = new THREE.BufferGeometry();
+      var posL = new Float32Array([
+        c.lastSkidLeft.x, c.lastSkidLeft.y, c.lastSkidLeft.z,
+        leftX, leftY, leftZ,
+        c.lastSkidLeft.x + perpX*0.22, c.lastSkidLeft.y, c.lastSkidLeft.z + perpZ*0.22,
+        leftX + perpX*0.22, leftY, leftZ + perpZ*0.22
+      ]);
+      geoL.setAttribute('position', new THREE.BufferAttribute(posL, 3));
+      geoL.setIndex([0, 1, 2, 1, 3, 2]);
+      geoL.computeVertexNormals();
+      var meshL = new THREE.Mesh(geoL, skidMarkMat);
+      skidMarkGroup.add(meshL);
+
+      // Oikea renkaanjälki
+      var geoR = new THREE.BufferGeometry();
+      var posR = new Float32Array([
+        c.lastSkidRight.x, c.lastSkidRight.y, c.lastSkidRight.z,
+        rightX, rightY, rightZ,
+        c.lastSkidRight.x - perpX*0.22, c.lastSkidRight.y, c.lastSkidRight.z - perpZ*0.22,
+        rightX - perpX*0.22, rightY, rightZ - perpZ*0.22
+      ]);
+      geoR.setAttribute('position', new THREE.BufferAttribute(posR, 3));
+      geoR.setIndex([0, 1, 2, 1, 3, 2]);
+      geoR.computeVertexNormals();
+      var meshR = new THREE.Mesh(geoR, skidMarkMat);
+      skidMarkGroup.add(meshR);
+    }
+
+    c.lastSkidLeft = { x: leftX, y: leftY, z: leftZ };
+    c.lastSkidRight = { x: rightX, y: rightY, z: rightZ };
+  }
 
   /* Kameraohjaus */
   var controls = (function(){
@@ -626,8 +685,9 @@
   var splashGeo = new THREE.SphereGeometry(0.08, 6, 6);
   var splashMat = new THREE.MeshStandardMaterial({ color: 0xc8e6ff, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.8 });
 
-  function spawnSplashParticles(x, y, z, count) {
-    if (window.AudioEngine) AudioEngine.playFX('splash');
+  // Splash sound soitetaan VAIN jos isHuman === true (pelaajan auto)
+  function spawnSplashParticles(x, y, z, count, isHuman) {
+    if (isHuman && window.AudioEngine) AudioEngine.playFX('splash');
     for (var i = 0; i < count; i++) {
       var mesh = new THREE.Mesh(splashGeo, splashMat);
       mesh.position.set(x + (Math.random()-0.5)*0.8, y + 0.1, z + (Math.random()-0.5)*0.8);
@@ -672,10 +732,9 @@
     var bodyGeo = new THREE.BoxGeometry(1.7, 0.5, 3.4);
     bodyGeo.translate(0, 0.45, 0);
     
-    // Vaalennettu materiaalin väri silloin kun tekstuuri on käytössä
     var baseCol = new THREE.Color(bodyColorHex);
     if (texturesEnabled && carTexUrl) {
-      baseCol.lerp(new THREE.Color(0xffffff), 0.35); // Vaalennetaan pohjaa niin tekstuuri erottuu
+      baseCol.lerp(new THREE.Color(0xffffff), 0.35);
     }
 
     var bodyMat = new THREE.MeshStandardMaterial({
@@ -757,13 +816,13 @@
   }
 
   /* ---------------------------------------------------------------
-     PELAAJIEN ASETUKSET & MODAALI IKKUNA (OLETUSTEKSTUURIT 1, 2, 3, 4)
+     PELAAJIEN ASETUKSET (MOBIILILLA OLETUSOHJAUS: KOSKETUSNÄYTTÖ)
   --------------------------------------------------------------- */
   var playerConfigs = [
-    { name: "Pelaaja 1", ctrl: "keyboard", color: "#d42419", texIdx: 1, model: "simple" }, // Oletus Tekstuuri 1
-    { name: "Pelaaja 2", ctrl: "keyboard", color: "#28a745", texIdx: 2, model: "simple" }, // Oletus Tekstuuri 2
-    { name: "Pelaaja 3", ctrl: "keyboard", color: "#eb8b00", texIdx: 3, model: "simple" }, // Oletus Tekstuuri 3
-    { name: "Pelaaja 4", ctrl: "keyboard", color: "#8e24aa", texIdx: 4, model: "simple" }  // Oletus Tekstuuri 4
+    { name: "Pelaaja 1", ctrl: defaultControlMethod, color: "#d42419", texIdx: 1, model: "simple" },
+    { name: "Pelaaja 2", ctrl: defaultControlMethod, color: "#28a745", texIdx: 2, model: "simple" },
+    { name: "Pelaaja 3", ctrl: defaultControlMethod, color: "#eb8b00", texIdx: 3, model: "simple" },
+    { name: "Pelaaja 4", ctrl: defaultControlMethod, color: "#8e24aa", texIdx: 4, model: "simple" }
   ];
 
   var previewScenes = [];
@@ -803,7 +862,7 @@
       html += '<label>🎮 Ohjain:</label>';
       html += '<select class="ctrl-select" data-player="' + i + '">';
       html += '<option value="keyboard"' + (cfg.ctrl === 'keyboard' ? ' selected' : '') + '>⌨️ Näppäimistö (' + defaultKbLabels[i] + ')</option>';
-      html += '<option value="touch"' + (cfg.ctrl === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö</option>';
+      html += '<option value="touch"' + (cfg.ctrl === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö (Joystick)</option>';
       html += '<option value="gamepad0"' + (cfg.ctrl === 'gamepad0' ? ' selected' : '') + '>🕹️ Gamepad 1</option>';
       html += '<option value="gamepad1"' + (cfg.ctrl === 'gamepad1' ? ' selected' : '') + '>🕹️ Gamepad 2</option>';
       html += '<option value="gamepad2"' + (cfg.ctrl === 'gamepad2' ? ' selected' : '') + '>🕹️ Gamepad 3</option>';
@@ -1174,7 +1233,6 @@
     var availColors = PRESET_PALETTES.filter(function(c){ return usedColors.indexOf(c) === -1; });
     if (availColors.length === 0) availColors = PRESET_PALETTES.slice();
 
-    // AI-autojen tekstuurit aina validaatisti indeksistä 1 eteenpäin
     var availTextures = [];
     for (var t = 1; t < CAR_TEXTURE_PATHS.length; t++) {
       if (usedTextures.indexOf(t) === -1) availTextures.push(t);
@@ -1230,7 +1288,9 @@
         pitTimer: 0.0,
         pitCooldown: 0.0,
         driftVx: 0.0,
-        driftVz: 0.0
+        driftVz: 0.0,
+        lastSkidLeft: null,
+        lastSkidRight: null
       };
 
       if (isPlayerCar && window.AudioEngine) {
@@ -1449,11 +1509,20 @@
     countdownTimeouts.push(hideT);
   }
 
+  function clearSkidMarks() {
+    while (skidMarkGroup.children.length > 0) {
+      var obj = skidMarkGroup.children[0];
+      if (obj.geometry) obj.geometry.dispose();
+      skidMarkGroup.remove(obj);
+    }
+  }
+
   function initRace(){
     if(!currentTrack) return;
 
     if (window.AudioEngine) AudioEngine.tryPlayMusic();
     finishCounter = 0;
+    clearSkidMarks();
     createCars();
 
     var s0 = currentTrack.samples[0];
@@ -1492,6 +1561,8 @@
       c.pitCooldown = 0.0;
       c.driftVx = 0.0;
       c.driftVz = 0.0;
+      c.lastSkidLeft = null;
+      c.lastSkidRight = null;
 
       c.mesh.position.set(c.x, c.y, c.z);
       c.mesh.rotation.y = c.angle;
@@ -1838,6 +1909,23 @@
           }
         }
 
+        // KOVASSA NOPEUDESSA JARRUTUS: jarrutus.mp3 & JARRUTUSJÄLJET DRIFTISSÄ
+        if (inp.brake && c.speed > 14.0) {
+          if (window.AudioEngine) AudioEngine.playFX('jarrutus');
+
+          // Jos samalla käännetään, tehdään drift ja jätetään asfalttiin renkaanjäljet
+          if (inp.left || inp.right) {
+            gripFactor *= 0.55; // Syvempi luisto
+            spawnSkidMarkSegment(c);
+          } else {
+            c.lastSkidLeft = null;
+            c.lastSkidRight = null;
+          }
+        } else {
+          c.lastSkidLeft = null;
+          c.lastSkidRight = null;
+        }
+
         if(inp.gas) c.speed += accel * delta * gripFactor;
         else if(inp.brake) c.speed -= brake * delta;
         else {
@@ -1924,7 +2012,7 @@
             if (pdist < pud.radius) {
               c.speed *= (1.0 - 0.22 * delta);
               if (Math.abs(c.speed) > 5.0 && Math.random() < 0.6) {
-                spawnSplashParticles(nextX, c.y, nextZ, 3);
+                spawnSplashParticles(nextX, c.y, nextZ, 3, true); // Splash soitetaan vain pelaajille!
               }
               break;
             }
@@ -2043,7 +2131,7 @@
             var pud = puddlesList[p];
             var pdx = c.x - pud.x, pdz = c.z - pud.z;
             if (Math.sqrt(pdx*pdx + pdz*pdz) < pud.radius && Math.random() < 0.4) {
-              spawnSplashParticles(c.x, c.y, c.z, 2);
+              spawnSplashParticles(c.x, c.y, c.z, 2, false); // Ei splash-ääntä AI-autoille
               break;
             }
           }
@@ -2178,6 +2266,7 @@
     disposeMesh(terrainMesh); disposeMesh(roadMesh); disposeMesh(curbMesh);
     disposeMesh(postMesh); disposeMesh(forestMesh); disposeMesh(finishLineMesh);
     disposeMesh(bridgeMeshGroup); disposeMesh(boosterGroup); disposeMesh(pitStopGroup);
+    clearSkidMarks();
 
     var track = TrackGenerator.buildTrackPath();
     currentTrack = track;
@@ -2373,7 +2462,7 @@
   if (texturesBtn) {
     texturesBtn.addEventListener('click', function(e){
       texturesEnabled = !texturesEnabled;
-      window.texturesEnabled = texturesEnabled; // Päivitetään myös globaali tila
+      window.texturesEnabled = texturesEnabled;
       e.target.textContent = texturesEnabled ? '🖼️ Tekstuurit On' : '🖼️ Tekstuurit Off';
       e.target.classList.toggle('active', texturesEnabled);
       regenerateAll();
