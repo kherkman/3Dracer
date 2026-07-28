@@ -1,4 +1,4 @@
-// env_hitech.js - Hi-Tech futuristisen kaupunkiympäristön 3D-määritelmä (Valaistut rakennukset & Katuvalot radan ulkopuolella)
+// env_hitech.js - Hi-Tech futuristisen kaupunkiympäristön 3D-määritelmä (Valaistut talot & Heijastavat ikkunat)
 (function() {
   window.ENV_BUILDERS = window.ENV_BUILDERS || {};
 
@@ -9,7 +9,6 @@
     ctxCanvas.fillStyle = baseColorHex || '#1e293b';
     ctxCanvas.fillRect(0, 0, 128, 256);
 
-    // Neonraitoja ja piirilevykuviointia
     ctxCanvas.strokeStyle = 'rgba(0, 240, 255, 0.9)';
     ctxCanvas.lineWidth = 2;
     for (var y = 10; y < 250; y += 25) {
@@ -40,10 +39,41 @@
     return tex;
   }
 
+  // Heijastava futuristinen alfa-ikkunatekstuuri Hi-Tech taloille (asetetaan JPG-kuvien päälle)
+  function createReflectiveHitechWindowTex() {
+    var c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    var ctxCanvas = c.getContext('2d');
+    ctxCanvas.clearRect(0, 0, 128, 256);
+
+    var hitechWindowColors = [
+      'rgba(0, 240, 255, 0.85)',  // Neon cyan
+      'rgba(255, 0, 170, 0.85)',  // Neon magenta
+      'rgba(56, 189, 248, 0.90)', // Sähkönsininen
+      'rgba(0, 255, 136, 0.80)'   // Neon vihreä
+    ];
+
+    for (var y = 10; y < 246; y += 20) {
+      for (var x = 6; x < 122; x += 16) {
+        if (Math.random() < 0.80) {
+          var col = hitechWindowColors[Math.floor(Math.random() * hitechWindowColors.length)];
+          ctxCanvas.fillStyle = col;
+          ctxCanvas.fillRect(x, y, 11, 13);
+
+          ctxCanvas.fillStyle = 'rgba(255, 255, 255, 0.75)';
+          ctxCanvas.fillRect(x + 1, y + 1, 9, 2);
+        }
+      }
+    }
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  var cachedReflectiveHitechTex = null;
+
   window.ENV_BUILDERS['hitech'] = function(track, bounds, ctx) {
     var hitechGroup = new THREE.Group();
 
-    // Kirkastetut pohjavärit, jotta tekstuuri erottuu selvästi
     var bldgColors = ['#1e293b', '#334155', '#1e1b4b', '#0f766e', '#1e3a8a', '#312e81', '#374151'];
     var neonColors = [0x00f0ff, 0xff00aa, 0x00ff88, 0xa855f7, 0xff6600, 0x38bdf8];
 
@@ -54,11 +84,14 @@
     var texPaths = ctx.HITECH_TEXTURE_PATHS || [];
     var carTexPaths = ctx.CAR_TEXTURE_PATHS || [];
 
+    if (!cachedReflectiveHitechTex) {
+      cachedReflectiveHitechTex = createReflectiveHitechWindowTex();
+    }
+
     var placedCount = 0;
     var maxAttempts = numBuildings * 6;
     var attempts = 0;
 
-    // --- FUTURISTISET PILVENPIIRTÄJÄT ---
     while (placedCount < numBuildings && attempts < maxAttempts) {
       attempts++;
       var x = bounds.cx + (Math.random() * 2 - 1) * halfSize;
@@ -109,6 +142,36 @@
       bMesh.receiveShadow = true;
       hitechGroup.add(bMesh);
 
+      // --- HEIJASTAVAT FUTURISTISET IKKUNAT JPG-TEKSTUURIEN PÄÄLLE ---
+      var windowTexInst = cachedReflectiveHitechTex.clone();
+      windowTexInst.repeat.set(1, Math.max(1, Math.floor(bh / 7)));
+      windowTexInst.needsUpdate = true;
+
+      var glassMat = new THREE.MeshStandardMaterial({
+        color: 0x00f0ff,
+        map: windowTexInst,
+        roughness: 0.05,
+        metalness: 0.85,
+        transparent: true,
+        opacity: 0.90,
+        emissive: 0x00aaff,
+        emissiveIntensity: 0.30,
+        side: THREE.DoubleSide
+      });
+
+      var glassGeo;
+      if (shapeType < 0.35) {
+        glassGeo = new THREE.CylinderGeometry(bw * 0.46, bw * 0.56, bh * 0.88, 8);
+      } else if (shapeType < 0.65) {
+        glassGeo = new THREE.CylinderGeometry(bw * 0.31, bw * 0.61, bh * 0.88, 6);
+      } else {
+        glassGeo = new THREE.BoxGeometry(bw + 0.08, bh * 0.88, bd + 0.08);
+      }
+
+      var glassMesh = new THREE.Mesh(glassGeo, glassMat);
+      glassMesh.position.set(x, groundY + bh * 0.48, z);
+      hitechGroup.add(glassMesh);
+
       // Valoreunukset & Hohtavat neontangot
       if (Math.random() < 0.6) {
         var neonCol = neonColors[Math.floor(Math.random() * neonColors.length)];
@@ -149,18 +212,16 @@
       }
     }
 
-    // --- KATUVALOT RADAN VARRELLE (TÄYSIN AJO- JA REUNARADAN ULKOPUOLELLE) ---
+    // --- KATUVALOT RADAN VARRELLE (TÄYSIN AJORADAN ULKOPUOLELLE) ---
     var lampStep = 5;
     var lampGeo = new THREE.CylinderGeometry(0.1, 0.15, 5.0, 6);
     lampGeo.translate(0, 2.5, 0);
 
-    // Katuvalon varren suuntaus turvallisesti radalta ulospäin
     var lampHeadGeo = new THREE.BoxGeometry(1.2, 0.2, 0.5);
     lampHeadGeo.translate(0, 5.0, -0.4);
 
     var lampMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.2 });
 
-    // Varmistettu riittävä etäisyys (RADAN PUOLIKAS + REUNAKIVI + TURVAMARGINAALI 2.6m)
     var lampOffsetR = ctx.ROAD_HALF_WIDTH + ctx.CURB_WIDTH + 2.6;
 
     for (var i = 0; i < track.n; i += lampStep) {
