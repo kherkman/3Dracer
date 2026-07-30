@@ -218,8 +218,8 @@
       var distNorm = Math.min(1.0, dist / maxRadius);
       var angleFromVertical = Math.atan2(Math.abs(clampDx), Math.abs(clampDy)) * (180 / Math.PI);
 
-      // Kääntyminen alkaa 30 asteessa ja saavuttaa maksimin 90 asteessa
-      var steerThreshold = 30;
+      // Kääntyminen alkaa 10 asteessa ja saavuttaa maksimin 90 asteessa
+      var steerThreshold = 10;
       var maxAngle = 90;
 
       if (distNorm > 0.18 && angleFromVertical > steerThreshold) {
