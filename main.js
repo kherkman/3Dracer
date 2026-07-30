@@ -40,6 +40,12 @@
   var shopTimer = 30;
   var shopTimerInterval = null;
   var shopSelectedIndices = [0, 0, 0, 0];
+  var prevShopInputStates = [
+    { gas: false, brake: false, right: false },
+    { gas: false, brake: false, right: false },
+    { gas: false, brake: false, right: false },
+    { gas: false, brake: false, right: false }
+  ];
 
   // RADAN PIIRTO -TILA
   var customDrawnPoints = [];
@@ -68,6 +74,8 @@
 
   var ENV_TEXTURE_PATHS = {
     grass: 'nurmikko.jpg',
+    kukkamaa: 'kukkamaa.jpg',
+    suo: 'suo.jpg',
     lumi: 'lumi.jpg',
     asphalt: 'asfaltti.jpg',
     gravel: 'hiekka.jpg',
@@ -79,7 +87,8 @@
     shroomfloor: 'sienimaa.jpg',
     sienitie: 'sienitie.jpg',
     varikko: 'varikko.jpg',
-    booster: 'kiihdytin.jpg'
+    booster: 'kiihdytin.jpg',
+    pallo: 'pallo.jpg'
   };
 
   var CITY_TEXTURE_PATHS = [
@@ -702,7 +711,7 @@
   }
 
   /* ---------------------------------------------------------------
-     PARTIKKELIT: HIEKKA, VESI, TÖRMÄYSKIPINÄT JA SAVU
+     PARTIKKELIT: HIEKKA, VESI, TÖRMÄYSKIPINÄT, SAVU JA PALLOJEN SCATTER
   --------------------------------------------------------------- */
   var dustParticles = [];
   var dustGeo = new THREE.SphereGeometry(0.35, 6, 6);
@@ -806,6 +815,58 @@
     }
   }
 
+  // PALLOJEN KERÄYKSEN SCATTER-EFEKTI
+  var orbScatterParticles = [];
+  var orbScatterGeo = new THREE.SphereGeometry(0.18, 8, 8);
+  var orbScatterMat = new THREE.MeshStandardMaterial({
+    color: 0x00f0ff,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 1.0,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.95
+  });
+
+  function spawnOrbScatterParticles(x, y, z, count) {
+    for (var i = 0; i < count; i++) {
+      var mesh = new THREE.Mesh(orbScatterGeo, orbScatterMat);
+      mesh.position.set(x, y, z);
+      var angle = Math.random() * Math.PI * 2;
+      var elevation = (Math.random() - 0.2) * Math.PI;
+      var speed = 6.0 + Math.random() * 12.0;
+      var vx = Math.cos(angle) * Math.cos(elevation) * speed;
+      var vy = Math.sin(elevation) * speed + 2.0;
+      var vz = Math.sin(angle) * Math.cos(elevation) * speed;
+
+      scene.add(mesh);
+      orbScatterParticles.push({
+        mesh: mesh,
+        vx: vx, vy: vy, vz: vz,
+        life: 0.45 + Math.random() * 0.35,
+        maxLife: 0.8
+      });
+    }
+  }
+
+  function updateOrbScatterParticles(delta) {
+    for (var i = orbScatterParticles.length - 1; i >= 0; i--) {
+      var p = orbScatterParticles[i];
+      p.life -= delta;
+      if (p.life <= 0) {
+        scene.remove(p.mesh);
+        orbScatterParticles.splice(i, 1);
+      } else {
+        p.vy -= 12.0 * delta;
+        p.mesh.position.x += p.vx * delta;
+        p.mesh.position.y += p.vy * delta;
+        p.mesh.position.z += p.vz * delta;
+
+        var scale = Math.max(0.01, (p.life / p.maxLife));
+        p.mesh.scale.set(scale, scale, scale);
+      }
+    }
+  }
+
   var puddlesList = [];
   var waterGroup = new THREE.Group();
   scene.add(waterGroup);
@@ -846,20 +907,13 @@
   }
 
   /* ---------------------------------------------------------------
-     KERÄILYPALLOT (COLLECTIBLES)
+     KERÄILYPALLOT (COLLECTIBLES) JA PALLO.JPG TEKSTUURI
   --------------------------------------------------------------- */
   var collectiblesList = [];
   var collectiblesGroup = new THREE.Group();
   scene.add(collectiblesGroup);
 
   var orbGeo = new THREE.SphereGeometry(0.8, 16, 16);
-  var orbMat = new THREE.MeshStandardMaterial({
-    color: 0x00f0ff,
-    emissive: 0x00aaff,
-    emissiveIntensity: 0.8,
-    roughness: 0.1,
-    metalness: 0.9
-  });
 
   function spawnCollectiblesOnTrack() {
     while (collectiblesGroup.children.length > 0) {
@@ -870,6 +924,16 @@
     collectiblesList = [];
 
     if (!collectiblesEnabled || !currentTrack) return;
+
+    var orbTex = texturesEnabled ? loadTextureWithFallback(ENV_TEXTURE_PATHS.pallo || 'pallo.jpg', 1, 1, '#00f0ff', 'PALLO') : null;
+    var orbMat = new THREE.MeshStandardMaterial({
+      map: orbTex,
+      color: 0xffffff,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.5,
+      roughness: 0.2,
+      metalness: 0.8
+    });
 
     var numOrbs = 14 + Math.floor(Math.random() * 8);
     for (var i = 0; i < numOrbs; i++) {
@@ -925,6 +989,8 @@
             car.lapTimeRemaining += 10.0;
           }
 
+          spawnOrbScatterParticles(orb.x, orb.y, orb.z, 22);
+
           if (window.AudioEngine) AudioEngine.playFX('pallo');
           break;
         }
@@ -933,7 +999,7 @@
   }
 
   /* ---------------------------------------------------------------
-     RATAKUVA (MINIMAP) - LIVENÄ PIIRRETTÄVÄ 2D-KARTTA
+     RATAKUVA (MINIMAP) - LIVENÄ PIIRRETTÄVÄ 2D-KARTTA (START/FINISH VIIVA)
   --------------------------------------------------------------- */
   function updateMinimap() {
     var canvas = document.getElementById('minimapCanvas');
@@ -971,6 +1037,27 @@
     ctxCanvas.closePath();
     ctxCanvas.stroke();
 
+    // Start/Finish viiva valkoiseksi poikkiviivaksi
+    if (currentTrack.samples.length > 0) {
+      var s0 = currentTrack.samples[0];
+      var perp0X = -s0.tz;
+      var perp0Z = s0.tx;
+      var rWidth = TrackGenerator.ROAD_HALF_WIDTH;
+
+      var lx1 = mapX(s0.x + perp0X * rWidth);
+      var lz1 = mapZ(s0.z + perp0Z * rWidth);
+      var lx2 = mapX(s0.x - perp0X * rWidth);
+      var lz2 = mapZ(s0.z - perp0Z * rWidth);
+
+      ctxCanvas.strokeStyle = '#ffffff';
+      ctxCanvas.lineWidth = 7.0; // Poikkiviivan paksuus
+      ctxCanvas.lineCap = 'square';
+      ctxCanvas.beginPath();
+      ctxCanvas.moveTo(lx1, lz1);
+      ctxCanvas.lineTo(lx2, lz2);
+      ctxCanvas.stroke();
+    }
+
     cars.forEach(function(c) {
       if (c.finished) return;
       var cx = mapX(c.x);
@@ -1005,7 +1092,6 @@
     var forwardX = Math.sin(c.angle);
     var forwardZ = Math.cos(c.angle);
 
-    // Sijoitetaan peilikamera auton keulan kohdalle katsomaan taaksepäin
     rearCamera.position.set(
       c.x - forwardX * 0.4,
       c.y + 1.25,
@@ -1380,6 +1466,7 @@
       html += '<option value="keyboard"' + (cfg.ctrl === 'keyboard' ? ' selected' : '') + '>⌨️ Näppäimistö (' + defaultKbLabels[i] + ')</option>';
       html += '<option value="touch"' + (cfg.ctrl === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö joystick</option>';
       html += '<option value="touch_wheel"' + (cfg.ctrl === 'touch_wheel' ? ' selected' : '') + '>🏎️ Kosketusnäyttö ratti & polkimet</option>';
+      html += '<option value="gyro"' + (cfg.ctrl === 'gyro' ? ' selected' : '') + '>📱 Gyro / Kallistus</option>';
       html += '<option value="gamepad0"' + (cfg.ctrl === 'gamepad0' ? ' selected' : '') + '>🕹️ Gamepad 1</option>';
       html += '<option value="gamepad1"' + (cfg.ctrl === 'gamepad1' ? ' selected' : '') + '>🕹️ Gamepad 2</option>';
       html += '<option value="gamepad2"' + (cfg.ctrl === 'gamepad2' ? ' selected' : '') + '>🕹️ Gamepad 3</option>';
@@ -1538,7 +1625,7 @@
   });
 
   /* ---------------------------------------------------------------
-     ASETUKSET-MODAALI SÄÄDÖT & PAINIKKEET
+     ASETUKSET-MODAALI SÄÄDÖT JA PAINIKKEET
   --------------------------------------------------------------- */
   var settingsModal = document.getElementById('settingsModal');
   var openSettingsModalBtn = document.getElementById('openSettingsModalBtn');
@@ -1886,7 +1973,7 @@
         aiSpeed: getAiSpeedForDifficulty(),
         laps: 0, currentLapTime: 0, bestLapTime: null,
         lastSampleIdx: 0, passedMidpoint: false,
-        finished: false, finishRank: 0,
+        finished: false, finishRank: 0, timeOut: false,
         wrongWayTimer: 0,
         wrongWay: false,
         tireWear: 0.0,
@@ -2033,12 +2120,17 @@
       if (c) {
         var html = '<h3 style="color:' + c.colorCss + ';">' + pIcons[i] + ' ' + c.name + '</h3>';
         if (c.finished) {
-          html += '<div style="font-size:0.85rem; font-weight:800; color:#28a745; margin:4px 0;">🏁 MAALISSA!</div>';
-          html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#d4611f;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
-          html += '<div class="hud-row"><span>Paras aika:</span><span class="hud-val">' + formatTime(c.bestLapTime) + '</span></div>';
+          if (c.timeOut) {
+            html += '<div style="font-size:0.85rem; font-weight:800; color:#ef4444; margin:4px 0;">⏰ AIKARAJA LOPPU!</div>';
+            html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#ef4444;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
+          } else {
+            html += '<div style="font-size:0.85rem; font-weight:800; color:#28a745; margin:4px 0;">🏁 MAALISSA!</div>';
+            html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#d4611f;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
+            html += '<div class="hud-row"><span>Paras aika:</span><span class="hud-val">' + formatTime(c.bestLapTime) + '</span></div>';
+          }
         } else {
           if (isQualifying) {
-            html += '<div class="hud-row" style="color:#ffee00; font-weight:800;"><span>⏱️ AIKA-AJOT</span></div>';
+            html += '<div class="hud-row" style="color:#000000; font-weight:800;"><span>⏱️ AIKA-AJOT</span></div>';
             html += '<div class="hud-row"><span>Aika:</span><span class="hud-val">' + formatTime(c.currentLapTime) + '</span></div>';
           } else {
             html += '<div class="hud-row"><span>Kierros:</span><span class="hud-val">' + c.laps + ' / ' + targetLaps + '</span></div>';
@@ -2047,35 +2139,34 @@
           }
 
           if (timeLimitSetting > 0) {
-            var timeRemColor = c.lapTimeRemaining < 10 ? '#ff2200' : '#00f0ff';
-            html += '<div class="hud-row"><span>Aikaraja:</span><span class="hud-val" style="color:' + timeRemColor + ';">' + c.lapTimeRemaining.toFixed(1) + 's</span></div>';
+            var timeRemColor = c.lapTimeRemaining <= 20 ? '#ef4444' : '#000000';
+            html += '<div class="hud-row"><span>Aikaraja:</span><span class="hud-val" style="color:' + timeRemColor + '; font-weight:800;">' + c.lapTimeRemaining.toFixed(1) + 's</span></div>';
           }
 
           if (collectiblesEnabled) {
-            html += '<div class="hud-row"><span>🔮 Palloja:</span><span class="hud-val" style="color:#00f0ff;">' + (c.orbsCollected || 0) + '</span></div>';
+            html += '<div class="hud-row"><span>🔮 Palloja:</span><span class="hud-val" style="color:#000000; font-weight:800;">' + (c.orbsCollected || 0) + '</span></div>';
           }
 
           if (damageEnabled) {
             var dmgPct = Math.round(c.damage * 100);
-            var dmgColor = dmgPct > 60 ? '#ff2200' : (dmgPct > 25 ? '#ffaa00' : '#28a745');
+            var dmgColor = dmgPct > 60 ? '#ef4444' : (dmgPct > 25 ? '#ffaa00' : '#28a745');
             html += '<div class="hud-row"><span>Vahinko:</span><span class="hud-val" style="color:' + dmgColor + ';">' + dmgPct + '%</span></div>';
           }
 
           if (tireWearEnabled) {
             var wearPct = Math.round(c.tireWear * 100);
-            var wearColor = wearPct > 70 ? '#ff2200' : (wearPct > 40 ? '#ffaa00' : '#28a745');
+            var wearColor = wearPct > 70 ? '#ef4444' : (wearPct > 40 ? '#ffaa00' : '#28a745');
             html += '<div class="hud-row"><span>Renkaat:</span><span class="hud-val" style="color:' + wearColor + ';">' + (100 - wearPct) + '%</span></div>';
           }
 
           if (c.pitTimer > 0) {
-            html += '<div class="wrong-way-banner" style="color:#00f0ff; border-color:#00f0ff; background:rgba(0,240,255,0.15);">🛞 VARIKKO: ' + c.pitTimer.toFixed(1) + 's</div>';
+            html += '<div class="wrong-way-banner" style="color:#000000; border-color:#0284c7; background:rgba(2,132,199,0.15);">🛞 VARIKKO: ' + c.pitTimer.toFixed(1) + 's</div>';
           }
 
           if (c.wrongWay) {
             html += '<div class="wrong-way-banner">⚠️ VÄÄRÄ SUUNTA!</div>';
           }
 
-          // NOPEUSMITTARI PAIKOITETTU HUD-KORTIN SISÄLLE TIETORIVIEN ALAPUOLELLE
           if (speedometerEnabled) {
             var kmh = Math.round(Math.max(0, c.speed * 2.8));
             var speedRatio = Math.min(1.0, Math.max(0, c.speed / carMaxSpeedSetting));
@@ -2092,6 +2183,23 @@
           }
         }
         hudBox.innerHTML = html;
+      }
+    }
+
+    // AIKARAJA WARING CENTER OVERLAY
+    if (isRacing && timeLimitSetting > 0 && cars[0] && !cars[0].finished && cars[0].lapTimeRemaining <= 20 && cars[0].lapTimeRemaining > 0) {
+      var cdOverlay = document.getElementById('countdownOverlay');
+      if (cdOverlay) {
+        cdOverlay.style.display = 'flex';
+        cdOverlay.style.fontSize = '3.5rem';
+        cdOverlay.style.color = '#ef4444';
+        cdOverlay.textContent = '⏱️ AIKARAJA: ' + cars[0].lapTimeRemaining.toFixed(1) + 's';
+      }
+    } else if (!isCountdown && document.getElementById('countdownOverlay') && !careerTransitionTimeout) {
+      var cdOverlay = document.getElementById('countdownOverlay');
+      if (cdOverlay && cdOverlay.style.fontSize === '3.5rem') {
+        cdOverlay.style.display = 'none';
+        cdOverlay.style.fontSize = '8rem';
       }
     }
 
@@ -2113,7 +2221,7 @@
       for(var i = 0; i < sorted.length; i++) {
         var car = sorted[i];
         var pos = i + 1;
-        var statusIcon = car.finished ? ' 🏁' : '';
+        var statusIcon = car.timeOut ? ' ⏰' : (car.finished ? ' 🏁' : '');
         htmlLb += '<div class="lb-item">';
         htmlLb += '<span>' + pos + '.</span>';
         htmlLb += '<span class="lb-badge" style="background:' + car.colorCss + ';"></span>';
@@ -2135,6 +2243,7 @@
     var overlay = document.getElementById('countdownOverlay');
     if (!overlay) return;
     overlay.style.display = 'flex';
+    overlay.style.fontSize = '8rem';
     isCountdown = true;
 
     var steps = [
@@ -2217,6 +2326,7 @@
     activeCar.currentLapTime = 0;
     activeCar.passedMidpoint = false;
     activeCar.finished = false;
+    activeCar.timeOut = false;
     activeCar.lapTimeRemaining = timeLimitSetting > 0 ? timeLimitSetting : 0;
 
     activeCar.mesh.position.set(activeCar.x, activeCar.y, activeCar.z);
@@ -2292,6 +2402,7 @@
       c.passedMidpoint = false;
       c.finished = false;
       c.finishRank = 0;
+      c.timeOut = false;
       c.wrongWayTimer = 0;
       c.wrongWay = false;
       c.tireWear = 0.0;
@@ -2315,7 +2426,7 @@
   }
 
   /* ---------------------------------------------------------------
-     KISA ALUSTUS & LOPETUS
+     KISA ALUSTUS JA LOPETUS
   --------------------------------------------------------------- */
   function setupRaceUI() {
     var rotateBtn = document.getElementById('rotateBtn');
@@ -2389,6 +2500,7 @@
       c.passedMidpoint = false;
       c.finished = false;
       c.finishRank = 0;
+      c.timeOut = false;
       c.wrongWayTimer = 0;
       c.wrongWay = false;
       c.tireWear = 0.0;
@@ -2478,22 +2590,28 @@
   if (exitRaceBtn) exitRaceBtn.addEventListener('click', stopRace);
 
   /* ---------------------------------------------------------------
-     KAUPPA (SHOP) KISOJEN VÄLIIN URATILASSA
+     KAUPPA (SHOP) KISOJEN VÄLIIN URATILASSA & MAKSIMIARVOJEN TARKISTUS
   --------------------------------------------------------------- */
   var shopItems = [
-    { name: "⚡ Kiihtyvyys (+10%)", cost: 3, key: "accelMult", val: 1.10 },
-    { name: "🏎️ Maksiminopeus (+5%)", cost: 4, key: "speedMult", val: 1.05 },
-    { name: "🛞 Renkaiden kestävyys (+20%)", cost: 3, key: "tireMult", val: 0.80 },
-    { name: "💥 Vahingonsieto (+20%)", cost: 3, key: "dmgMult", val: 0.80 },
-    { name: "🏖️ Hiekan pito (+25%)", cost: 2, key: "sandMult", val: 0.75 },
-    { name: "🌊 Veden pito (+25%)", cost: 2, key: "waterMult", val: 0.75 },
-    { name: "🌧️ Sateen pito (+25%)", cost: 2, key: "rainMult", val: 0.75 }
+    { name: "⚡ Kiihtyvyys (+10%)", cost: 3, key: "accelMult", step: 1.10, maxVal: 2.00, isMin: false, unit: "x" },
+    { name: "🏎️ Maksiminopeus (+5%)", cost: 4, key: "speedMult", step: 1.05, maxVal: 1.50, isMin: false, unit: "x" },
+    { name: "🛞 Renkaiden kestävyys (+20%)", cost: 3, key: "tireMult", step: 0.80, maxVal: 0.20, isMin: true, unit: "x" },
+    { name: "💥 Vahingonsieto (+20%)", cost: 3, key: "dmgMult", step: 0.80, maxVal: 0.20, isMin: true, unit: "x" },
+    { name: "🏖️ Hiekan pito (+25%)", cost: 2, key: "sandMult", step: 0.75, maxVal: 0.25, isMin: true, unit: "x" },
+    { name: "🌊 Veden pito (+25%)", cost: 2, key: "waterMult", step: 0.75, maxVal: 0.25, isMin: true, unit: "x" },
+    { name: "🌧️ Sateen pito (+25%)", cost: 2, key: "rainMult", step: 0.75, maxVal: 0.25, isMin: true, unit: "x" }
   ];
 
   function openCareerShopModal(callback) {
     isShopMode = true;
     shopTimer = 30;
     shopSelectedIndices = [0, 0, 0, 0];
+    prevShopInputStates = [
+      { gas: false, brake: false, right: false },
+      { gas: false, brake: false, right: false },
+      { gas: false, brake: false, right: false },
+      { gas: false, brake: false, right: false }
+    ];
 
     var shopOverlay = document.getElementById('shopOverlay');
     if (!shopOverlay) return callback();
@@ -2517,6 +2635,24 @@
     }, 1000);
   }
 
+  function isUpgradeMaxed(car, item) {
+    var cur = car.upgrades[item.key];
+    if (item.isMin) {
+      return cur <= item.maxVal + 0.001;
+    }
+    return cur >= item.maxVal - 0.001;
+  }
+
+  function formatUpgradeCurrentAndMax(car, item) {
+    var cur = car.upgrades[item.key];
+    var maxStr = item.maxVal.toFixed(2) + item.unit;
+    var curStr = cur.toFixed(2) + item.unit;
+    if (isUpgradeMaxed(car, item)) {
+      return '<span style="color:#ef4444; font-weight:800;">TÄYNNÄ (' + curStr + ')</span>';
+    }
+    return curStr + ' / MAX ' + maxStr;
+  }
+
   function updateShopUI() {
     var container = document.getElementById('shopCardsContainer');
     if (!container) return;
@@ -2537,10 +2673,18 @@
 
       shopItems.forEach(function(item, idx) {
         var isSel = (shopSelectedIndices[i] === idx);
+        var isMaxed = isUpgradeMaxed(car, item);
+
         var bg = isSel ? 'rgba(0, 240, 255, 0.25)' : 'transparent';
         var border = isSel ? '1px solid #00f0ff' : '1px solid transparent';
-        html += '<div style="padding:4px 6px; border-radius:6px; background:' + bg + '; border:' + border + '; font-size:0.75rem; display:flex; justify-content:space-between;">';
-        html += '<span>' + item.name + '</span><span style="color:#ffee00; font-weight:700;">' + item.cost + ' 🔮</span>';
+        var costText = isMaxed ? 'MAX' : (item.cost + ' 🔮');
+        var valInfo = formatUpgradeCurrentAndMax(car, item);
+
+        html += '<div style="padding:5px 6px; border-radius:6px; background:' + bg + '; border:' + border + '; font-size:0.75rem; display:flex; flex-direction:column; gap:2px;">';
+        html += '<div style="display:flex; justify-space-between; align-items:center;">';
+        html += '<span style="font-weight:700;">' + item.name + '</span><span style="color:#ffee00; font-weight:800;">' + costText + '</span>';
+        html += '</div>';
+        html += '<div style="font-size:0.68rem; color:#cbd5e1; text-align:right;">' + valInfo + '</div>';
         html += '</div>';
       });
 
@@ -2556,21 +2700,38 @@
       var car = cars[i];
       if (!car) continue;
 
-      if (inp.brake) {
+      var prev = prevShopInputStates[i];
+
+      // Reuna-ilmaisu (edge trigger / Askel kerrallaan)
+      var brakePressed = inp.brake && !prev.brake;
+      var gasPressed = inp.gas && !prev.gas;
+      var rightPressed = inp.right && !prev.right;
+
+      if (brakePressed) {
         shopSelectedIndices[i] = (shopSelectedIndices[i] - 1 + shopItems.length) % shopItems.length;
         updateShopUI();
-      } else if (inp.gas) {
+      } else if (gasPressed) {
         shopSelectedIndices[i] = (shopSelectedIndices[i] + 1) % shopItems.length;
         updateShopUI();
-      } else if (inp.right) {
+      } else if (rightPressed) {
         var item = shopItems[shopSelectedIndices[i]];
-        if (car.orbsCollected >= item.cost) {
+        var isMaxed = isUpgradeMaxed(car, item);
+
+        if (!isMaxed && car.orbsCollected >= item.cost) {
           car.orbsCollected -= item.cost;
-          car.upgrades[item.key] *= item.val;
+          
+          if (item.isMin) {
+            car.upgrades[item.key] = Math.max(item.maxVal, car.upgrades[item.key] * item.step);
+          } else {
+            car.upgrades[item.key] = Math.min(item.maxVal, car.upgrades[item.key] * item.step);
+          }
+
           if (window.AudioEngine) AudioEngine.playFX('go');
           updateShopUI();
         }
       }
+
+      prevShopInputStates[i] = { gas: !!inp.gas, brake: !!inp.brake, right: !!inp.right };
     }
   }
 
@@ -2873,6 +3034,7 @@
         if (c.lapTimeRemaining <= 0) {
           c.lapTimeRemaining = 0;
           c.finished = true;
+          c.timeOut = true;
           c.finishRank = ++finishCounter;
           c.mesh.visible = false;
           if (window.AudioEngine) AudioEngine.stopCarEngineSound(c);
@@ -2972,8 +3134,11 @@
         var turnSpeed = 2.3 * gripFactor;
         if(Math.abs(c.speed) > 0.5) {
           var dirFactor = c.speed > 0 ? 1 : -1;
-          if(inp.left) c.angle += turnSpeed * delta * dirFactor;
-          if(inp.right) c.angle -= turnSpeed * delta * dirFactor;
+          var leftVal = typeof inp.left === 'number' ? inp.left : (inp.left ? 1 : 0);
+          var rightVal = typeof inp.right === 'number' ? inp.right : (inp.right ? 1 : 0);
+
+          if(leftVal > 0) c.angle += turnSpeed * delta * dirFactor * leftVal;
+          if(rightVal > 0) c.angle -= turnSpeed * delta * dirFactor * rightVal;
         }
 
         var forwardX = Math.sin(c.angle);
@@ -3257,6 +3422,7 @@
     }
 
     updateCollectibles(delta);
+    updateOrbScatterParticles(delta);
     updateSplashParticles(delta);
     updateDustParticles(delta);
     updateSmokeParticles(delta);
