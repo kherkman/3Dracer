@@ -1,4 +1,4 @@
-// player-controls.js - Pelaajien ohjaus- ja syötelogiikka (Dynamiset Kosketusnäyttö-Joystickit, Ratti & Polkimet)
+// player-controls.js - Pelaajien ohjaus- ja syötelogiikka (Dynamiset Kosketusnäyttö-Joystickit, Ratti & Polkimet, Gyro)
 (function() {
   'use strict';
 
@@ -16,9 +16,83 @@
     { gas:false, brake:false, left:false, right:false }
   ];
 
+  var gyroInputState = { gas:false, brake:false, left:false, right:false };
   var mouseState = { leftDown: false, rightDown: false, xNorm: 0 };
 
+  // ALUSTETAAN GYRO / LAITTEEN ASENTOANTURI
+  function initGyro() {
+    if (typeof window === 'undefined' || !window.DeviceOrientationEvent) return;
+
+    function handleOrientation(e) {
+      if (!e) return;
+      var screenAngle = (window.orientation || (screen.orientation && screen.orientation.angle) || 0);
+      var steerDeg = 0;
+      var tiltDeg = 0;
+
+      var beta = e.beta || 0;   // [-180, 180]
+      var gamma = e.gamma || 0; // [-90, 90]
+
+      if (Math.abs(screenAngle) === 90) {
+        // Vaakanäkymä (Landscape)
+        var isSign = (screenAngle === 90) ? 1 : -1;
+        steerDeg = beta * isSign;
+        tiltDeg = -gamma * isSign;
+      } else {
+        // Pystynäkymä (Portrait)
+        steerDeg = gamma;
+        tiltDeg = beta - 35; // 35 asteen lepoasento
+      }
+
+      // Kääntäminen ratin tapaan
+      var deadzoneSteer = 4;
+      var maxSteer = 30;
+      var absSteer = Math.abs(steerDeg);
+
+      if (absSteer > deadzoneSteer) {
+        var factor = Math.min(1.0, (absSteer - deadzoneSteer) / (maxSteer - deadzoneSteer));
+        if (steerDeg < 0) {
+          gyroInputState.left = factor;
+          gyroInputState.right = false;
+        } else {
+          gyroInputState.right = factor;
+          gyroInputState.left = false;
+        }
+      } else {
+        gyroInputState.left = false;
+        gyroInputState.right = false;
+      }
+
+      // Kallistaminen eteen/ylös = kaasu, taakse/alas = jarru
+      var deadzoneTilt = 8;
+      if (tiltDeg < -deadzoneTilt) {
+        gyroInputState.gas = true;
+        gyroInputState.brake = false;
+      } else if (tiltDeg > deadzoneTilt) {
+        gyroInputState.brake = true;
+        gyroInputState.gas = false;
+      } else {
+        gyroInputState.gas = false;
+        gyroInputState.brake = false;
+      }
+    }
+
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      window.addEventListener('touchstart', function requestGyroPermission() {
+        DeviceOrientationEvent.requestPermission().then(function(state) {
+          if (state === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+          }
+        }).catch(function(){});
+        window.removeEventListener('touchstart', requestGyroPermission);
+      }, { once: true });
+    } else {
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+  }
+
   function initListeners(getIsRacing) {
+    initGyro();
+
     window.addEventListener('keydown', function(e){
       var k = e.key.toLowerCase();
       var isRacing = getIsRacing ? getIsRacing() : false;
@@ -88,7 +162,7 @@
     });
   }
 
-  // 1. DYNAAMINEN JOYSTICK-OHJAUS
+  // 1. DYNAAMINEN JOYSTICK-OHJAUS (SÄÄDETTY KÄÄNTYMINEN ALKAMAAN 30 ASTEESSA, DYNAAMINEN KÄÄNTÖVOIMA)
   function bindJoystickForPlayer(playerIdx) {
     var container = document.getElementById('touchP' + (playerIdx + 1));
     if (!container) return;
@@ -144,12 +218,28 @@
       var distNorm = Math.min(1.0, dist / maxRadius);
       var angleFromVertical = Math.atan2(Math.abs(clampDx), Math.abs(clampDy)) * (180 / Math.PI);
 
-      var steerThreshold = 45;
-      touchInputState[playerIdx].left = (distNorm > 0.20) && (angleFromVertical > steerThreshold) && (clampDx < 0);
-      touchInputState[playerIdx].right = (distNorm > 0.20) && (angleFromVertical > steerThreshold) && (clampDx > 0);
+      // Kääntyminen alkaa 30 asteessa ja saavuttaa maksimin 90 asteessa
+      var steerThreshold = 30;
+      var maxAngle = 90;
 
-      touchInputState[playerIdx].gas = (distNorm > 0.20) && (clampDy < -10);
-      touchInputState[playerIdx].brake = (distNorm > 0.20) && (clampDy > 10);
+      if (distNorm > 0.18 && angleFromVertical > steerThreshold) {
+        var steerFactor = Math.min(1.0, (angleFromVertical - steerThreshold) / (maxAngle - steerThreshold));
+        steerFactor *= distNorm; // Painotetaan myös etäisyydellä
+
+        if (clampDx < 0) {
+          touchInputState[playerIdx].left = steerFactor;
+          touchInputState[playerIdx].right = false;
+        } else {
+          touchInputState[playerIdx].right = steerFactor;
+          touchInputState[playerIdx].left = false;
+        }
+      } else {
+        touchInputState[playerIdx].left = false;
+        touchInputState[playerIdx].right = false;
+      }
+
+      touchInputState[playerIdx].gas = (distNorm > 0.18) && (clampDy < -8);
+      touchInputState[playerIdx].brake = (distNorm > 0.18) && (clampDy > 8);
     }
 
     function handlePointerUp(e) {
@@ -169,80 +259,83 @@
     container.addEventListener('pointercancel', handlePointerUp);
   }
 
-  // 2. KOSKETUSNÄYTTÖ RATTI & POLKIMET OHJAUS
+  // 2. KIINTEÄ RATTI-JOYSTICK (DYNAAMINEN KÄÄNTYMINEN & RATIN ANIMAATIO)
   function bindWheelAndPedalsForPlayer(playerIdx) {
     var container = document.getElementById('touchWheelP' + (playerIdx + 1));
     if (!container) return;
 
-    var wheel = container.querySelector('.steering-wheel-ui');
+    var wheelBase = container.querySelector('.steering-wheel-ui');
+    var handle = container.querySelector('.wheel-handle');
     var gasBtn = container.querySelector('.gas-pedal');
     var brakeBtn = container.querySelector('.brake-pedal');
 
-    if (!wheel || !gasBtn || !brakeBtn) return;
+    if (!wheelBase || !gasBtn || !brakeBtn) return;
 
     var activeWheelPointerId = null;
-    var startAngle = 0;
-    var currentWheelDeg = 0;
+    var startX = 0;
+    var maxRange = 55; // Vaakaliikkeen maksimietäisyys (px)
+    var deadzone = 8;   // Kääntökuolionalue (px)
 
     function handleWheelDown(e) {
       if (activeWheelPointerId !== null) return;
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       activeWheelPointerId = e.pointerId;
 
-      var rect = wheel.getBoundingClientRect();
-      var centerX = rect.left + rect.width / 2;
-      var centerY = rect.top + rect.height / 2;
+      startX = e.clientX;
 
-      startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI) - currentWheelDeg;
-
-      try { wheel.setPointerCapture(e.pointerId); } catch(err){}
+      try { wheelBase.setPointerCapture(e.pointerId); } catch(err){}
     }
 
     function handleWheelMove(e) {
       if (e.pointerId !== activeWheelPointerId) return;
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
 
-      var rect = wheel.getBoundingClientRect();
-      var centerX = rect.left + rect.width / 2;
-      var centerY = rect.top + rect.height / 2;
+      var dx = e.clientX - startX;
+      var clampDx = Math.max(-maxRange, Math.min(maxRange, dx));
 
-      var touchAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
-      var deg = touchAngle - startAngle;
+      // ANIMATIO: Ratti kääntyy visuaalisesti ja siirtyy samalla vaakasuunnassa
+      var rotDeg = (clampDx / maxRange) * 85; // Visuaalinen kääntökulma 0-85 astetta
 
-      while (deg > 180) deg -= 360;
-      while (deg < -180) deg += 360;
+      if (handle) {
+        handle.style.transform = 'translate(calc(-50% + ' + clampDx + 'px), -50%) rotate(' + rotDeg + 'deg)';
+      }
 
-      deg = Math.max(-120, Math.min(120, deg));
-      currentWheelDeg = deg;
-
-      wheel.style.transform = 'rotate(' + deg + 'deg)';
-
-      var deadzone = 45;
-      touchInputState[playerIdx].left = deg < -deadzone;
-      touchInputState[playerIdx].right = deg > deadzone;
+      // DYNAAMINEN KÄÄNTÖVOIMA (0.0 - 1.0):
+      var absDx = Math.abs(clampDx);
+      if (absDx > deadzone) {
+        var steerFactor = Math.min(1.0, (absDx - deadzone) / (maxRange - deadzone));
+        if (clampDx < 0) {
+          touchInputState[playerIdx].left = steerFactor;
+          touchInputState[playerIdx].right = false;
+        } else {
+          touchInputState[playerIdx].right = steerFactor;
+          touchInputState[playerIdx].left = false;
+        }
+      } else {
+        touchInputState[playerIdx].left = false;
+        touchInputState[playerIdx].right = false;
+      }
     }
 
     function handleWheelUp(e) {
       if (e.pointerId !== activeWheelPointerId) return;
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       activeWheelPointerId = null;
 
-      currentWheelDeg = 0;
-      wheel.style.transform = 'rotate(0deg)';
+      if (handle) {
+        handle.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+      }
 
       touchInputState[playerIdx].left = false;
       touchInputState[playerIdx].right = false;
 
-      try { wheel.releasePointerCapture(e.pointerId); } catch(err){}
+      try { wheelBase.releasePointerCapture(e.pointerId); } catch(err){}
     }
 
-    wheel.addEventListener('pointerdown', handleWheelDown);
-    wheel.addEventListener('pointermove', handleWheelMove);
-    wheel.addEventListener('pointerup', handleWheelUp);
-    wheel.addEventListener('pointercancel', handleWheelUp);
+    wheelBase.addEventListener('pointerdown', handleWheelDown);
+    wheelBase.addEventListener('pointermove', handleWheelMove);
+    wheelBase.addEventListener('pointerup', handleWheelUp);
+    wheelBase.addEventListener('pointercancel', handleWheelUp);
 
     function handleGasDown(e) {
       e.preventDefault(); e.stopPropagation();
@@ -294,8 +387,8 @@
 
       var containerW = document.getElementById('touchWheelP' + (i + 1));
       if (containerW) {
-        var wheel = containerW.querySelector('.steering-wheel-ui');
-        if (wheel) wheel.style.transform = 'rotate(0deg)';
+        var handle = containerW.querySelector('.wheel-handle');
+        if (handle) handle.style.transform = 'translate(-50%, -50%) rotate(0deg)';
         var gasBtn = containerW.querySelector('.gas-pedal');
         var brakeBtn = containerW.querySelector('.brake-pedal');
         if (gasBtn) gasBtn.classList.remove('active');
@@ -319,15 +412,17 @@
     return {
       gas: !!gasButton,
       brake: !!brakeButton,
-      left: steerAxis < -0.2 || dLeft,
-      right: steerAxis > 0.2 || dRight
+      left: steerAxis < -0.2 ? Math.abs(steerAxis) : (dLeft ? 1 : false),
+      right: steerAxis > 0.2 ? steerAxis : (dRight ? 1 : false)
     };
   }
 
   function getPlayerControls(playerIndex, playerConfigs, numPlayers) {
     var ctrlType = playerConfigs && playerConfigs[playerIndex] ? playerConfigs[playerIndex].ctrl : 'keyboard';
 
-    if(ctrlType === 'touch' || ctrlType === 'touch_wheel') {
+    if(ctrlType === 'gyro') {
+      return gyroInputState;
+    } else if(ctrlType === 'touch' || ctrlType === 'touch_wheel') {
       return touchInputState[playerIndex];
     } else if(ctrlType === 'keyboard') {
       if(playerIndex === 0) {
@@ -351,8 +446,8 @@
       return {
         gas: mouseState.leftDown,
         brake: mouseState.rightDown,
-        left: mouseState.xNorm < -0.12,
-        right: mouseState.xNorm > 0.12
+        left: mouseState.xNorm < -0.12 ? Math.abs(mouseState.xNorm) : false,
+        right: mouseState.xNorm > 0.12 ? mouseState.xNorm : false
       };
     } else if(ctrlType === 'bluetooth') {
       return getGamepadInputs(playerIndex);
