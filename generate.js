@@ -1,4 +1,4 @@
-// generate.js - Radan ja maaston generointimoottori (Sisältää piirretyn radan 3D-muunnoksen, risteyssillat & Synthwave-ruudukot)
+// generate.js - Radan ja maaston generointimoottori (Sisältää piirretyn radan 3D-muunnoksen, risteyssillat, matalat seinät & Synthwave-ruudukot)
 (function() {
   'use strict';
 
@@ -1057,8 +1057,73 @@
     return merged;
   }
 
-  function buildDelineators(track) {
+  // REUNAN TYYLIT (PYLVÄÄT TAI YHTENÄISET MATALAT HARMAAT SEINÄT)
+  function buildDelineators(track, curbStyle) {
     var n = track.n, samples = track.samples;
+
+    if (curbStyle === 'seinat') {
+      var positions = [], indices = [];
+      var wallH = 0.65;
+      var wallW = 0.25;
+
+      function addWallSide(sideSign) {
+        var vertsStart = positions.length / 3;
+        for (var i = 0; i < n; i++) {
+          var s = samples[i];
+          var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
+          var bankOffset = Math.sin(s.bank) * ROAD_HALF_WIDTH;
+          var baseEdgeY = s.y + ROAD_ELEVATION + sideSign * bankOffset;
+
+          var innerR = ROAD_HALF_WIDTH + CURB_WIDTH + 0.05;
+          var outerR = innerR + wallW;
+
+          var ix = s.x + perp.x * innerR * sideSign, iz = s.z + perp.z * innerR * sideSign;
+          var ox = s.x + perp.x * outerR * sideSign, oz = s.z + perp.z * outerR * sideSign;
+
+          var bY = baseEdgeY;
+          var tY = baseEdgeY + wallH;
+
+          // 4 pistettä poikkileikkaukselle at i:
+          // 0: sisäpohja, 1: sisäylä, 2: ulkoylä, 3: ulkopohja
+          positions.push(ix, bY, iz, ix, tY, iz, ox, tY, oz, ox, bY, oz);
+        }
+
+        for (var i = 0; i < n; i++) {
+          var j = (i + 1) % n;
+          var b1 = vertsStart + i * 4;
+          var b2 = vertsStart + j * 4;
+
+          // Sisäseinä
+          indices.push(b1 + 0, b1 + 1, b2 + 1, b1 + 0, b2 + 1, b2 + 0);
+          // Päällinen (kansi)
+          indices.push(b1 + 1, b1 + 2, b2 + 2, b1 + 1, b2 + 2, b2 + 1);
+          // Ulkoseinä
+          indices.push(b1 + 2, b1 + 3, b2 + 3, b1 + 2, b2 + 3, b2 + 2);
+        }
+      }
+
+      addWallSide(1);  // Vasen puoli
+      addWallSide(-1); // Oikea puoli
+
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      var wallMat = new THREE.MeshStandardMaterial({
+        color: 0x7a8288,
+        roughness: 0.65,
+        metalness: 0.25,
+        side: THREE.DoubleSide
+      });
+
+      var wallMesh = new THREE.Mesh(geo, wallMat);
+      wallMesh.castShadow = true;
+      wallMesh.receiveShadow = true;
+      return wallMesh;
+    }
+
+    // Oletus: Pylväät
     var postGeo = new THREE.CylinderGeometry(0.06, 0.08, 0.8, 6); postGeo.translate(0, 0.4, 0);
     var capGeo = new THREE.ConeGeometry(0.1, 0.2, 6); capGeo.translate(0, 0.9, 0);
     var merged = mergeGeometries([postGeo, capGeo]);
