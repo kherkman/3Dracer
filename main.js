@@ -52,6 +52,7 @@
   var isDrawingCustomTrack = false;
   var drawCanvas = null;
   var drawCtx = null;
+  var curbStyle = 'pylvaat';
 
   var isRain = false;
   var isFog = false;
@@ -619,6 +620,14 @@
   var rainLineSystem = new THREE.LineSegments(rainLineGeo, rainLineMat);
   rainLineSystem.visible = false;
   scene.add(rainLineSystem);
+
+  var curbStyleSelect = document.getElementById('curbStyleSelect');
+  if (curbStyleSelect) {
+    curbStyleSelect.addEventListener('change', function(e) {
+      curbStyle = e.target.value;
+      regenerateAll();
+    });
+  }
 
   function createSnowFlakeTexture() {
     var c = document.createElement('canvas'); c.width = 64; c.height = 64;
@@ -1272,7 +1281,7 @@
 
     roadMesh = TrackGenerator.buildRoad(currentTrack, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS, currentEnvironment, gravelEnabled); scene.add(roadMesh);
     curbMesh = TrackGenerator.buildCurbs(currentTrack); scene.add(curbMesh);
-    postMesh = TrackGenerator.buildDelineators(currentTrack); scene.add(postMesh);
+    postMesh = TrackGenerator.buildDelineators(currentTrack, curbStyle); scene.add(postMesh);
     forestMesh = TrackGenerator.buildForest(currentTrack, terrainInfo, currentEnvironment, currentSeason, currentTimeOfDay, texturesEnabled, loadTextureWithFallback, CITY_TEXTURE_PATHS, HITECH_TEXTURE_PATHS, CAR_TEXTURE_PATHS); scene.add(forestMesh);
     finishLineMesh = TrackGenerator.buildFinishLine(currentTrack); scene.add(finishLineMesh);
     
@@ -3507,7 +3516,7 @@
 
     roadMesh = TrackGenerator.buildRoad(track, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS, currentEnvironment, gravelEnabled); scene.add(roadMesh);
     curbMesh = TrackGenerator.buildCurbs(track); scene.add(curbMesh);
-    postMesh = TrackGenerator.buildDelineators(track); scene.add(postMesh);
+    postMesh = TrackGenerator.buildDelineators(track, curbStyle); scene.add(postMesh);
     forestMesh = TrackGenerator.buildForest(track, terrainInfo, currentEnvironment, currentSeason, currentTimeOfDay, texturesEnabled, loadTextureWithFallback, CITY_TEXTURE_PATHS, HITECH_TEXTURE_PATHS, CAR_TEXTURE_PATHS); scene.add(forestMesh);
     finishLineMesh = TrackGenerator.buildFinishLine(track); scene.add(finishLineMesh);
     
