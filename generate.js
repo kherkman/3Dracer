@@ -910,6 +910,10 @@
         groundTexUrl = ENV_TEXTURE_PATHS.hitechfloor;
       } else if (currentEnvironment === 'jattisieni') {
         groundTexUrl = ENV_TEXTURE_PATHS.shroomfloor;
+      } else if (currentEnvironment === 'jattikukkaniitty') {
+        groundTexUrl = ENV_TEXTURE_PATHS.kukkamaa || 'kukkamaa.jpg';
+      } else if (currentEnvironment === 'suo') {
+        groundTexUrl = ENV_TEXTURE_PATHS.suo || 'suo.jpg';
       } else if (currentSeason === 'talvi' && (currentEnvironment === 'simple' || currentEnvironment === 'simplekuusi' || currentEnvironment === 'simplekoivu' || currentEnvironment === 'kuusi' || currentEnvironment === 'koivu')) {
         groundTexUrl = ENV_TEXTURE_PATHS.lumi || 'lumi.jpg';
       } else {
