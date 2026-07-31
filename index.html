@@ -86,7 +86,7 @@
   .btn.random-btn:hover { background:#7b1fa2; }
 
   .setting-row {
-    display:flex; justify-content:space-between; align-items:center;
+    display:flex; justify-space-between; align-items:center;
     margin-bottom:8px; font-size:0.8rem; font-weight:600; color:#2a2f22;
   }
   .setting-row label { display:flex; align-items:center; gap:6px; }
@@ -302,7 +302,7 @@
     width:100%; height:100%; inset:0;
   }
 
-  /* RATTI VASEMPAAN ALAREUNAAN (left: 20px) */
+  /* RATTI VASEMPAAN ALAREUNAAN */
   .steering-wheel-ui {
     position:absolute; bottom:20px; left:20px;
     transform: none;
@@ -335,7 +335,6 @@
   .wheel-spoke.h { width:100%; height:6px; top:calc(50% - 3px); left:0; }
   .wheel-spoke.v { width:6px; height:50%; bottom:0; left:calc(50% - 3px); }
 
-  /* SUUREMMAT MUSTAHARMAAT POLKIMET NUOLILLA */
   .pedals-ui {
     position:absolute; bottom:20px; right:20px;
     display:flex; gap:18px; align-items:flex-end; touch-action:none;
@@ -455,7 +454,7 @@
 <div id="touchP3" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
 <div id="touchP4" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
 
-<!-- KOSKETUSNÄYTÖN RATTI-JOYSTICK & MUSTAHARMAAT POLKIMET OVERLAYT -->
+<!-- KOSKETUSNÄYTÖN RATTI-JOYSTICK & POLKIMET OVERLAYT -->
 <div id="touchWheelP1" class="touch-controls-container touch-wheel-container">
   <div class="steering-wheel-ui">
     <div class="wheel-track-guide"></div>
@@ -642,6 +641,10 @@
 
     <div class="ui-buttons-grid" style="margin-top:8px;">
       <button class="btn" id="damageBtn">💥 Vahingot Off</button>
+      <button class="btn" id="fuelBtn">⛽ Polttoaine Off</button>
+      <button class="btn" id="refuelBtn" style="display:none;">⛽ Tankkaus Off</button>
+      <button class="btn" id="tunnelBtn">🚇 Tunneli Off</button>
+      <button class="btn" id="passingLaneBtn">🏎️ Ohituskaista Off</button>
       <button class="btn" id="qualifyingBtn">⏱️ Aika-ajot Off</button>
       <button class="btn" id="collectiblesBtn">🔮 Keräily Off</button>
       <button class="btn" id="boostersBtn">⚡ Kiihdyttimet Off</button>
