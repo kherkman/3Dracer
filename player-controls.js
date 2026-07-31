@@ -1,12 +1,12 @@
-// player-controls.js - Pelaajien ohjaus- ja syötelogiikka (Dynamiset Kosketusnäyttö-Joystickit, Ratti & Polkimet, Gyro)
+// player-controls.js - Pelaajien ohjaus- ja syötelogiikka (Dynaaminen Näppäimistöohjaus, Touch-Joystickit, Ratti & Polkimet, Gyro)
 (function() {
   'use strict';
 
   var keysInput = {
-    p1: { gas:false, brake:false, left:false, right:false },
-    p2: { gas:false, brake:false, left:false, right:false },
-    p3: { gas:false, brake:false, left:false, right:false },
-    p4: { gas:false, brake:false, left:false, right:false }
+    p1: { gas:false, brake:false, left:false, right:false, leftRamp:0.0, rightRamp:0.0 },
+    p2: { gas:false, brake:false, left:false, right:false, leftRamp:0.0, rightRamp:0.0 },
+    p3: { gas:false, brake:false, left:false, right:false, leftRamp:0.0, rightRamp:0.0 },
+    p4: { gas:false, brake:false, left:false, right:false, leftRamp:0.0, rightRamp:0.0 }
   };
 
   var touchInputState = [
@@ -19,7 +19,38 @@
   var gyroInputState = { gas:false, brake:false, left:false, right:false };
   var mouseState = { leftDown: false, rightDown: false, xNorm: 0 };
 
-  // ALUSTETAAN DYNAAMINEN GYRO / LAITTEEN ASENTOANTURI
+  var lastFrameTime = performance.now();
+
+  // DYNAAMINEN NÄPPÄIMISTÖN OHJAUKSEN PÄIVITYSSILMUKKA (Nopeutettu reaktioaika)
+  function updateKeyboardRamps() {
+    var now = performance.now();
+    var delta = (now - lastFrameTime) / 1000.0;
+    lastFrameTime = now;
+    if (delta > 0.1) delta = 0.1;
+
+    var players = ['p1', 'p2', 'p3', 'p4'];
+    players.forEach(function(pKey) {
+      var p = keysInput[pKey];
+
+      // Vasemmalle kääntö: nopeutettu nousuaikaa (4.5x/s = täysi käännös ~0,2 sekunnissa)
+      if (p.left) {
+        p.leftRamp = Math.min(1.0, p.leftRamp + delta * 4.5);
+      } else {
+        p.leftRamp = Math.max(0.0, p.leftRamp - delta * 6.0);
+      }
+
+      // Oikealle kääntö
+      if (p.right) {
+        p.rightRamp = Math.min(1.0, p.rightRamp + delta * 4.5);
+      } else {
+        p.rightRamp = Math.max(0.0, p.rightRamp - delta * 6.0);
+      }
+    });
+
+    requestAnimationFrame(updateKeyboardRamps);
+  }
+
+  // ALUSTETAAN GYRO / LAITTEEN ASENTOANTURI
   function initGyro() {
     if (typeof window === 'undefined' || !window.DeviceOrientationEvent) return;
 
@@ -33,17 +64,14 @@
       var gamma = e.gamma || 0; // [-90, 90]
 
       if (Math.abs(screenAngle) === 90) {
-        // Vaakanäkymä (Landscape)
         var isSign = (screenAngle === 90) ? 1 : -1;
         steerDeg = beta * isSign;
         tiltDeg = -gamma * isSign;
       } else {
-        // Pystynäkymä (Portrait)
         steerDeg = gamma;
-        tiltDeg = beta - 35; // 35 asteen lepoasento
+        tiltDeg = beta - 35;
       }
 
-      // DYNAAMINEN KÄÄNTÄMINEN RATIN TAPAAN (0.0 - 1.0)
       var deadzoneSteer = 4;
       var maxSteer = 30;
       var absSteer = Math.abs(steerDeg);
@@ -62,7 +90,6 @@
         gyroInputState.right = false;
       }
 
-      // Kallistaminen eteen/ylös = kaasu, taakse/alas = jarru
       var deadzoneTilt = 8;
       if (tiltDeg < -deadzoneTilt) {
         gyroInputState.gas = true;
@@ -92,6 +119,7 @@
 
   function initListeners(getIsRacing) {
     initGyro();
+    requestAnimationFrame(updateKeyboardRamps);
 
     window.addEventListener('keydown', function(e){
       var k = e.key.toLowerCase();
@@ -162,7 +190,7 @@
     });
   }
 
-  // 1. DYNAAMINEN JOYSTICK-OHJAUS (steerThreshold = 10 ASTETTA, DYNAAMINEN KÄÄNTÖVOIMA)
+  // DYNAAMINEN JOYSTICK-OHJAUS
   function bindJoystickForPlayer(playerIdx) {
     var container = document.getElementById('touchP' + (playerIdx + 1));
     if (!container) return;
@@ -218,13 +246,12 @@
       var distNorm = Math.min(1.0, dist / maxRadius);
       var angleFromVertical = Math.atan2(Math.abs(clampDx), Math.abs(clampDy)) * (180 / Math.PI);
 
-      // Kääntyminen alkaa 10 asteessa (steerThreshold = 10) ja saavuttaa maksimin 90 asteessa
       var steerThreshold = 10;
       var maxAngle = 90;
 
       if (distNorm > 0.15 && angleFromVertical > steerThreshold) {
         var steerFactor = Math.min(1.0, (angleFromVertical - steerThreshold) / (maxAngle - steerThreshold));
-        steerFactor *= distNorm; // Painotetaan etäisyydellä
+        steerFactor *= distNorm;
 
         if (clampDx < 0) {
           touchInputState[playerIdx].left = steerFactor;
@@ -259,7 +286,7 @@
     container.addEventListener('pointercancel', handlePointerUp);
   }
 
-  // 2. RATTI-JOYSTICK VASEMMASSA ALAKULMASSA (deadzone/steerThreshold = 10, DYNAAMINEN KÄÄNTÖ)
+  // RATTI-JOYSTICK VASEMMASSA ALAKULMASSA
   function bindWheelAndPedalsForPlayer(playerIdx) {
     var container = document.getElementById('touchWheelP' + (playerIdx + 1));
     if (!container) return;
@@ -273,8 +300,8 @@
 
     var activeWheelPointerId = null;
     var startX = 0;
-    var maxRange = 55;  // Vaakaliikkeen maksimietäisyys (px)
-    var deadzone = 10;   // Kuolionalue/Kynnysarvo (steerThreshold = 10)
+    var maxRange = 55;
+    var deadzone = 10;
 
     function handleWheelDown(e) {
       if (activeWheelPointerId !== null) return;
@@ -293,14 +320,12 @@
       var dx = e.clientX - startX;
       var clampDx = Math.max(-maxRange, Math.min(maxRange, dx));
 
-      // ANIMATIO: Ratti kääntyy visuaalisesti ja siirtyy vaakasuunnassa
       var rotDeg = (clampDx / maxRange) * 85;
 
       if (handle) {
         handle.style.transform = 'translate(calc(-50% + ' + clampDx + 'px), -50%) rotate(' + rotDeg + 'deg)';
       }
 
-      // DYNAAMINEN KÄÄNTÖVOIMA (0.0 - 1.0) KYNNYSARVOLLA 10
       var absDx = Math.abs(clampDx);
       if (absDx > deadzone) {
         var steerFactor = Math.min(1.0, (absDx - deadzone) / (maxRange - deadzone));
@@ -425,20 +450,28 @@
     } else if(ctrlType === 'touch' || ctrlType === 'touch_wheel') {
       return touchInputState[playerIndex];
     } else if(ctrlType === 'keyboard') {
-      if(playerIndex === 0) {
-        if(numPlayers === 1) {
-          return {
-            gas: keysInput.p1.gas || keysInput.p2.gas,
-            brake: keysInput.p1.brake || keysInput.p2.brake,
-            left: keysInput.p1.left || keysInput.p2.left,
-            right: keysInput.p1.right || keysInput.p2.right
-          };
-        }
-        return keysInput.p1;
+      var pKey = 'p' + (playerIndex + 1);
+      var kb = keysInput[pKey] || keysInput.p1;
+
+      if(playerIndex === 0 && numPlayers === 1) {
+        // Yksinpelissä sallitaan myös nuolinäppäimet p2-ohjaimesta p1:lle
+        var p1Left = keysInput.p1.leftRamp > 0 ? keysInput.p1.leftRamp : keysInput.p2.leftRamp;
+        var p1Right = keysInput.p1.rightRamp > 0 ? keysInput.p1.rightRamp : keysInput.p2.rightRamp;
+
+        return {
+          gas: keysInput.p1.gas || keysInput.p2.gas,
+          brake: keysInput.p1.brake || keysInput.p2.brake,
+          left: p1Left > 0.02 ? p1Left : false,
+          right: p1Right > 0.02 ? p1Right : false
+        };
       }
-      if(playerIndex === 1) return keysInput.p2;
-      if(playerIndex === 2) return keysInput.p3;
-      if(playerIndex === 3) return keysInput.p4;
+
+      return {
+        gas: kb.gas,
+        brake: kb.brake,
+        left: kb.leftRamp > 0.02 ? kb.leftRamp : false,
+        right: kb.rightRamp > 0.02 ? kb.rightRamp : false
+      };
     } else if(ctrlType.indexOf('gamepad') === 0) {
       var gpIdx = parseInt(ctrlType.replace('gamepad', '')) || 0;
       return getGamepadInputs(gpIdx);
