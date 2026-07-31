@@ -77,6 +77,7 @@
     grass: 'nurmikko.jpg',
     kukkamaa: 'kukkamaa.jpg',
     suo: 'suo.jpg',
+    pyramidi: 'pyramidi.jpg',
     lumi: 'lumi.jpg',
     asphalt: 'asfaltti.jpg',
     gravel: 'hiekka.jpg',
