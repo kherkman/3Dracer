@@ -259,7 +259,7 @@
     container.addEventListener('pointercancel', handlePointerUp);
   }
 
-  // 2. RATTI-JOYSTICK VASEMMASSA ALAKULMASSA (steerThreshold/deadzone = 10, DYNAAMINEN KÄÄNTÖ)
+  // 2. RATTI-JOYSTICK VASEMMASSA ALAKULMASSA (deadzone/steerThreshold = 10, DYNAAMINEN KÄÄNTÖ)
   function bindWheelAndPedalsForPlayer(playerIdx) {
     var container = document.getElementById('touchWheelP' + (playerIdx + 1));
     if (!container) return;
