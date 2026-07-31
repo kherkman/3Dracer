@@ -21,6 +21,10 @@
 
   // ASETUKSET
   var damageEnabled = false;            // Vahingot On/Off
+  var fuelEnabled = false;              // Polttoaineen kulutus On/Off
+  var refuelEnabled = false;            // Tankkaus kisassa On/Off
+  var tunnelEnabled = false;            // Tunneli On/Off
+  var passingLaneEnabled = false;      // Ohituskaista On/Off
   var timeLimitSetting = 0;            // Aikaraja (0 = Off)
   var qualifyingEnabled = false;       // Aika-ajot On/Off
   var collectiblesEnabled = false;     // Keräily On/Off
@@ -226,7 +230,7 @@
   }
 
   /* ---------------------------------------------------------------
-     PERUSASETUKSET JA KAMERAT (MUKANA TAUSTAPEILIKAMERA)
+     PERUSASETUKSET JA KAMERAT
   --------------------------------------------------------------- */
   var scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xd8e4d0, 1000, 100000);
@@ -242,7 +246,6 @@
   var cameraRight = new THREE.PerspectiveCamera(48, (innerWidth/2)/innerHeight, 0.1, 600);
   var camRightVec = new THREE.Vector3();
 
-  // TAUSTAPEILIKAMERA
   var rearCamera = new THREE.PerspectiveCamera(52, 220 / 70, 0.1, 300);
 
   var renderer = new THREE.WebGLRenderer({ antialias:true });
@@ -255,7 +258,6 @@
   renderer.toneMappingExposure = 1.05;
   document.body.appendChild(renderer.domElement);
 
-  /* CubeCamera vesilätäköiden 3D-peilausta varten */
   var puddleCubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter
@@ -263,7 +265,7 @@
   var puddleCubeCamera = new THREE.CubeCamera(0.1, 500, puddleCubeRenderTarget);
   scene.add(puddleCubeCamera);
 
-  /* JARRUTUSJÄLJET (SKID MARKS) - RYHMÄ */
+  /* JARRUTUSJÄLJET (SKID MARKS) */
   var skidMarkGroup = new THREE.Group();
   scene.add(skidMarkGroup);
 
@@ -825,7 +827,6 @@
     }
   }
 
-  // PALLOJEN KERÄYKSEN SCATTER-EFEKTI
   var orbScatterParticles = [];
   var orbScatterGeo = new THREE.SphereGeometry(0.18, 8, 8);
   var orbScatterMat = new THREE.MeshStandardMaterial({
@@ -917,7 +918,7 @@
   }
 
   /* ---------------------------------------------------------------
-     KERÄILYPALLOT (COLLECTIBLES) JA PALLO.JPG TEKSTUURI
+     KERÄILYPALLOT (COLLECTIBLES)
   --------------------------------------------------------------- */
   var collectiblesList = [];
   var collectiblesGroup = new THREE.Group();
@@ -1009,7 +1010,7 @@
   }
 
   /* ---------------------------------------------------------------
-     RATAKUVA (MINIMAP) - LIVENÄ PIIRRETTÄVÄ 2D-KARTTA (START/FINISH VIIVA)
+     RATAKUVA (MINIMAP)
   --------------------------------------------------------------- */
   function updateMinimap() {
     var canvas = document.getElementById('minimapCanvas');
@@ -1047,7 +1048,6 @@
     ctxCanvas.closePath();
     ctxCanvas.stroke();
 
-    // Start/Finish viiva valkoiseksi poikkiviivaksi
     if (currentTrack.samples.length > 0) {
       var s0 = currentTrack.samples[0];
       var perp0X = -s0.tz;
@@ -1060,7 +1060,7 @@
       var lz2 = mapZ(s0.z - perp0Z * rWidth);
 
       ctxCanvas.strokeStyle = '#ffffff';
-      ctxCanvas.lineWidth = 7.0; // Poikkiviivan paksuus
+      ctxCanvas.lineWidth = 7.0;
       ctxCanvas.lineCap = 'square';
       ctxCanvas.beginPath();
       ctxCanvas.moveTo(lx1, lz1);
@@ -1087,7 +1087,7 @@
   }
 
   /* ---------------------------------------------------------------
-     TAUSTAPEILI (REARVIEW MIRROR) RENDERÖINTI
+     TAUSTAPEILI (REARVIEW MIRROR)
   --------------------------------------------------------------- */
   function renderRearviewMirror() {
     var frame = document.getElementById('rearviewFrame');
@@ -1265,15 +1265,15 @@
 
     disposeMesh(terrainMesh); disposeMesh(roadMesh); disposeMesh(curbMesh);
     disposeMesh(postMesh); disposeMesh(forestMesh); disposeMesh(finishLineMesh);
-    disposeMesh(bridgeMeshGroup); disposeMesh(boosterGroup); disposeMesh(pitStopGroup);
+    disposeMesh(bridgeMeshGroup); disposeMesh(tunnelMeshGroup); disposeMesh(boosterGroup); disposeMesh(pitStopGroup);
     clearSkidMarks();
 
     if (TrackGenerator.buildTrackFromCustomPoints) {
-      var track = TrackGenerator.buildTrackFromCustomPoints(customDrawnPoints, drawCanvas.width, drawCanvas.height);
+      var track = TrackGenerator.buildTrackFromCustomPoints(customDrawnPoints, drawCanvas.width, drawCanvas.height, tunnelEnabled, passingLaneEnabled);
       currentTrack = track;
     } else {
       TrackGenerator.resetNoiseSeed();
-      currentTrack = TrackGenerator.buildTrackPath();
+      currentTrack = TrackGenerator.buildTrackPath(tunnelEnabled, passingLaneEnabled);
     }
 
     var terr = TrackGenerator.buildTerrain(currentTrack, currentEnvironment, currentSeason, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
@@ -1288,6 +1288,11 @@
     
     bridgeMeshGroup = TrackGenerator.buildBridgeStructures(currentTrack); scene.add(bridgeMeshGroup);
 
+    if (typeof TrackGenerator.buildTunnelStructure === 'function') {
+      tunnelMeshGroup = TrackGenerator.buildTunnelStructure(currentTrack, currentEnvironment, texturesEnabled, loadTextureWithFallback);
+      if (tunnelMeshGroup) scene.add(tunnelMeshGroup);
+    }
+
     if (typeof TrackGenerator.buildBoosters === 'function') {
       var bData = TrackGenerator.buildBoosters(currentTrack, boostersEnabled, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
       boosterGroup = bData.group;
@@ -1296,13 +1301,14 @@
     }
 
     if (typeof TrackGenerator.buildPitStop === 'function') {
-      var pData = TrackGenerator.buildPitStop(currentTrack, tireWearEnabled || damageEnabled, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
+      var isPitNeeded = tireWearEnabled || damageEnabled || (fuelEnabled && refuelEnabled);
+      var pData = TrackGenerator.buildPitStop(currentTrack, isPitNeeded, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
       pitStopGroup = pData.group;
       currentTrack.pitStopArea = pData.pitStopArea;
       if (pitStopGroup) scene.add(pitStopGroup);
     }
 
-    puddlesList = TrackGenerator.buildPuddles(currentTrack, waterGroup, waterEnabled, puddleCubeRenderTarget.texture);
+    puddlesList = TrackGenerator.buildPuddles(currentTrack, waterGroup, waterEnabled, puddleCubeRenderTarget.texture, isRain);
     spawnCollectiblesOnTrack();
 
     curbMesh.visible = curbsVisible;
@@ -1323,7 +1329,7 @@
   }
 
   /* ---------------------------------------------------------------
-     AUTOMALLIN RAKENTAMINEN & HOHTOEFEKTI (BOOSTER GLOW)
+     AUTOMALLIN RAKENTAMINEN
   --------------------------------------------------------------- */
   function buildCarMesh(bodyColorHex, accentColorHex, carTexUrl, modelType) {
     modelType = modelType || 'simple';
@@ -1662,6 +1668,49 @@
     });
   }
 
+  var fuelBtn = document.getElementById('fuelBtn');
+  var refuelBtn = document.getElementById('refuelBtn');
+
+  if (fuelBtn) {
+    fuelBtn.addEventListener('click', function() {
+      fuelEnabled = !fuelEnabled;
+      fuelBtn.textContent = fuelEnabled ? '⛽ Polttoaine On' : '⛽ Polttoaine Off';
+      fuelBtn.classList.toggle('active', fuelEnabled);
+      if (refuelBtn) refuelBtn.style.display = fuelEnabled ? 'block' : 'none';
+      regenerateAll();
+    });
+  }
+
+  if (refuelBtn) {
+    refuelBtn.addEventListener('click', function() {
+      refuelEnabled = !refuelEnabled;
+      refuelBtn.textContent = refuelEnabled ? '⛽ Tankkaus On' : '⛽ Tankkaus Off';
+      refuelBtn.classList.toggle('active', refuelEnabled);
+      // Kutsutaan radan uudelleenrakennusta, jotta varikko ilmestyy/poistuu heti
+      regenerateAll();
+    });
+  }
+
+  var tunnelBtn = document.getElementById('tunnelBtn');
+  if (tunnelBtn) {
+    tunnelBtn.addEventListener('click', function() {
+      tunnelEnabled = !tunnelEnabled;
+      tunnelBtn.textContent = tunnelEnabled ? '🚇 Tunneli On' : '🚇 Tunneli Off';
+      tunnelBtn.classList.toggle('active', tunnelEnabled);
+      regenerateAll();
+    });
+  }
+
+  var passingLaneBtn = document.getElementById('passingLaneBtn');
+  if (passingLaneBtn) {
+    passingLaneBtn.addEventListener('click', function() {
+      passingLaneEnabled = !passingLaneEnabled;
+      passingLaneBtn.textContent = passingLaneEnabled ? '🏎️ Ohituskaista On' : '🏎️ Ohituskaista Off';
+      passingLaneBtn.classList.toggle('active', passingLaneEnabled);
+      regenerateAll();
+    });
+  }
+
   var timeLimitInput = document.getElementById('timeLimitInput');
   if (timeLimitInput) {
     timeLimitInput.addEventListener('change', function(e) {
@@ -1979,15 +2028,18 @@
         headlight1: mesh.userData.headlight1,
         headlight2: mesh.userData.headlight2,
         x: 0, y: 0, z: 0, angle: 0, speed: 0,
+        targetAngle: 0,
         progress: 0, prevProgress: 0, totalDist: 0,
         aiSpeed: getAiSpeedForDifficulty(),
         laps: 0, currentLapTime: 0, bestLapTime: null,
         lastSampleIdx: 0, passedMidpoint: false,
         finished: false, finishRank: 0, timeOut: false,
+        outOfFuel: false,
         wrongWayTimer: 0,
         wrongWay: false,
         tireWear: 0.0,
         damage: 0.0,
+        fuel: 100.0,
         orbsCollected: 0,
         lapTimeRemaining: timeLimitSetting > 0 ? timeLimitSetting : 0,
         upgrades: { accelMult: 1.0, speedMult: 1.0, tireMult: 1.0, dmgMult: 1.0, sandMult: 1.0, waterMult: 1.0, rainMult: 1.0 },
@@ -1997,7 +2049,8 @@
         driftVx: 0.0,
         driftVz: 0.0,
         lastSkidLeft: null,
-        lastSkidRight: null
+        lastSkidRight: null,
+        inTunnel: false
       };
 
       if (isPlayerCar && window.AudioEngine) {
@@ -2130,7 +2183,10 @@
       if (c) {
         var html = '<h3 style="color:' + c.colorCss + ';">' + pIcons[i] + ' ' + c.name + '</h3>';
         if (c.finished) {
-          if (c.timeOut) {
+          if (c.outOfFuel) {
+            html += '<div style="font-size:0.85rem; font-weight:900; color:#ef4444; margin:4px 0;">⛽ POLTTOAINE LOPPUI!</div>';
+            html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#ef4444;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
+          } else if (c.timeOut) {
             html += '<div style="font-size:0.85rem; font-weight:800; color:#ef4444; margin:4px 0;">⏰ AIKARAJA LOPPU!</div>';
             html += '<div class="hud-row"><span>Sijoitus:</span><span class="hud-val" style="font-size:0.95rem; color:#ef4444;">' + c.finishRank + '. / ' + numCompetitors + '</span></div>';
           } else {
@@ -2146,6 +2202,12 @@
             html += '<div class="hud-row"><span>Kierros:</span><span class="hud-val">' + c.laps + ' / ' + targetLaps + '</span></div>';
             html += '<div class="hud-row"><span>Aika:</span><span class="hud-val">' + formatTime(c.currentLapTime) + '</span></div>';
             html += '<div class="hud-row"><span>Paras:</span><span class="hud-val">' + formatTime(c.bestLapTime) + '</span></div>';
+          }
+
+          if (fuelEnabled) {
+            var fuelPct = Math.round(c.fuel);
+            var fuelColor = fuelPct <= 20 ? '#ef4444' : (fuelPct <= 45 ? '#ffaa00' : '#28a745');
+            html += '<div class="hud-row"><span>Polttoaine:</span><span class="hud-val" style="color:' + fuelColor + '; font-weight:800;">' + fuelPct + '%</span></div>';
           }
 
           if (timeLimitSetting > 0) {
@@ -2170,7 +2232,8 @@
           }
 
           if (c.pitTimer > 0) {
-            html += '<div class="wrong-way-banner" style="color:#000000; border-color:#0284c7; background:rgba(2,132,199,0.15);">🛞 VARIKKO: ' + c.pitTimer.toFixed(1) + 's</div>';
+            var pitMsg = refuelEnabled ? '🛞 VARIKKO / TANKKAUS: ' : '🛞 VARIKKO: ';
+            html += '<div class="wrong-way-banner" style="color:#000000; border-color:#0284c7; background:rgba(2,132,199,0.15);">' + pitMsg + c.pitTimer.toFixed(1) + 's</div>';
           }
 
           if (c.wrongWay) {
@@ -2196,7 +2259,6 @@
       }
     }
 
-    // AIKARAJA WARING CENTER OVERLAY
     if (isRacing && timeLimitSetting > 0 && cars[0] && !cars[0].finished && cars[0].lapTimeRemaining <= 20 && cars[0].lapTimeRemaining > 0) {
       var cdOverlay = document.getElementById('countdownOverlay');
       if (cdOverlay) {
@@ -2231,7 +2293,7 @@
       for(var i = 0; i < sorted.length; i++) {
         var car = sorted[i];
         var pos = i + 1;
-        var statusIcon = car.timeOut ? ' ⏰' : (car.finished ? ' 🏁' : '');
+        var statusIcon = car.outOfFuel ? ' ⛽' : (car.timeOut ? ' ⏰' : (car.finished ? ' 🏁' : ''));
         htmlLb += '<div class="lb-item">';
         htmlLb += '<span>' + pos + '.</span>';
         htmlLb += '<span class="lb-badge" style="background:' + car.colorCss + ';"></span>';
@@ -2330,13 +2392,16 @@
     activeCar.z = s0.z;
     activeCar.y = getRoadSurfaceHeight(currentTrack, activeCar.x, activeCar.z, activeCar.y);
     activeCar.angle = startAngle;
+    activeCar.targetAngle = startAngle;
     activeCar.speed = 0;
     activeCar.progress = 0;
     activeCar.laps = 0;
     activeCar.currentLapTime = 0;
     activeCar.passedMidpoint = false;
     activeCar.finished = false;
+    activeCar.outOfFuel = false;
     activeCar.timeOut = false;
+    activeCar.fuel = 100.0;
     activeCar.lapTimeRemaining = timeLimitSetting > 0 ? timeLimitSetting : 0;
 
     activeCar.mesh.position.set(activeCar.x, activeCar.y, activeCar.z);
@@ -2401,6 +2466,7 @@
       c.z = samplePoint.z;
       c.y = getRoadSurfaceHeight(currentTrack, c.x, c.z, c.y);
       c.angle = startAngle;
+      c.targetAngle = startAngle;
       c.speed = 0;
       c.progress = sampleOffsetIdx / currentTrack.n;
       c.prevProgress = c.progress;
@@ -2411,12 +2477,14 @@
       c.lastSampleIdx = sampleOffsetIdx;
       c.passedMidpoint = false;
       c.finished = false;
+      c.outOfFuel = false;
       c.finishRank = 0;
       c.timeOut = false;
       c.wrongWayTimer = 0;
       c.wrongWay = false;
       c.tireWear = 0.0;
       c.damage = 0.0;
+      c.fuel = 100.0;
       c.lapTimeRemaining = timeLimitSetting > 0 ? timeLimitSetting : 0;
       c.pitTimer = 0.0;
       c.pitCooldown = 0.0;
@@ -2499,6 +2567,7 @@
       c.z = samplePoint.z + perp.z * (1.6 * colSign);
       c.y = getRoadSurfaceHeight(currentTrack, c.x, c.z, c.y);
       c.angle = startAngle;
+      c.targetAngle = startAngle;
       c.speed = 0;
       c.progress = sampleOffsetIdx / currentTrack.n;
       c.prevProgress = c.progress;
@@ -2509,12 +2578,14 @@
       c.lastSampleIdx = sampleOffsetIdx;
       c.passedMidpoint = false;
       c.finished = false;
+      c.outOfFuel = false;
       c.finishRank = 0;
       c.timeOut = false;
       c.wrongWayTimer = 0;
       c.wrongWay = false;
       c.tireWear = 0.0;
       c.damage = 0.0;
+      c.fuel = 100.0;
       c.lapTimeRemaining = timeLimitSetting > 0 ? timeLimitSetting : 0;
       c.pitTimer = 0.0;
       c.pitCooldown = 0.0;
@@ -2600,7 +2671,7 @@
   if (exitRaceBtn) exitRaceBtn.addEventListener('click', stopRace);
 
   /* ---------------------------------------------------------------
-     KAUPPA (SHOP) KISOJEN VÄLIIN URATILASSA & MAKSIMIARVOJEN TARKISTUS
+     KAUPPA (SHOP) KISOJEN VÄLIIN URATILASSA
   --------------------------------------------------------------- */
   var shopItems = [
     { name: "⚡ Kiihtyvyys (+10%)", cost: 3, key: "accelMult", step: 1.10, maxVal: 2.00, isMin: false, unit: "x" },
@@ -2712,7 +2783,6 @@
 
       var prev = prevShopInputStates[i];
 
-      // Reuna-ilmaisu (edge trigger / Askel kerrallaan)
       var brakePressed = inp.brake && !prev.brake;
       var gasPressed = inp.gas && !prev.gas;
       var rightPressed = inp.right && !prev.right;
@@ -2746,7 +2816,7 @@
   }
 
   /* ---------------------------------------------------------------
-     URA-TILAN LIIKETOIMINTALOGIIKKA
+     URA-TILAN LOGIIKKA
   --------------------------------------------------------------- */
   function randomizeEnvironmentAndTrack() {
     var envSelect = document.getElementById('envSelect');
@@ -3031,6 +3101,8 @@
       return;
     }
 
+    var isPitActive = tireWearEnabled || damageEnabled || (fuelEnabled && refuelEnabled);
+
     for(var i = 0; i < cars.length; i++) {
       var c = cars[i];
 
@@ -3039,6 +3111,43 @@
         continue;
       }
 
+      // POLTTOAINEEN KULUTUS JA LOPPUMINEN (Kiihdytyspainotettu, vähäinen rullaus)
+      if (fuelEnabled && !c.finished) {
+        var usageRate = 0.02; // Tyhjäkäynti/rullaus ilman kaasua: lähes nolla
+
+        if (c.isHuman) {
+          var inp = window.PlayerControls ? PlayerControls.getPlayerControls(i, playerConfigs, numPlayers) : {};
+          
+          if (inp.gas) {
+            var isAccelerating = (c.speed < carMaxSpeedSetting * 0.95);
+            var accelSpike = isAccelerating ? 0.75 : 0.35; // Kiihdytys vs tasainen matka-ajo
+            
+            usageRate = 0.10 + (Math.abs(c.speed) / carMaxSpeedSetting) * 0.25 + accelSpike;
+          } else {
+            // Kaasua ei paineta: erittäin vähäinen kulutus
+            usageRate = 0.02 + (Math.abs(c.speed) / carMaxSpeedSetting) * 0.03;
+          }
+        } else {
+          // AI-autot
+          var isAiAccel = (c.speed < c.aiSpeed * 0.95);
+          usageRate = 0.10 + (Math.abs(c.speed) / carMaxSpeedSetting) * 0.25 + (isAiAccel ? 0.70 : 0.35);
+        }
+
+        c.fuel -= delta * usageRate;
+        if (c.fuel <= 0) {
+          c.fuel = 0;
+          c.finished = true;
+          c.outOfFuel = true;
+          c.speed = 0;
+          c.finishRank = ++finishCounter;
+          c.mesh.visible = false;
+          if (window.AudioEngine) AudioEngine.stopCarEngineSound(c);
+          positionTouchControls();
+          continue;
+        }
+      }
+
+      // AIKARAJA
       if (timeLimitSetting > 0) {
         c.lapTimeRemaining -= delta;
         if (c.lapTimeRemaining <= 0) {
@@ -3072,6 +3181,7 @@
         c.pitCooldown = Math.max(0, c.pitCooldown - delta);
       }
 
+      // VARIKKOTANKKAUS & HUOLTO
       if (c.pitTimer > 0) {
         c.pitTimer -= delta;
         c.speed = 0;
@@ -3079,6 +3189,9 @@
           c.pitTimer = 0;
           c.tireWear = 0.0;
           c.damage = 0.0;
+          if (fuelEnabled && refuelEnabled) {
+            c.fuel = 100.0;
+          }
           c.pitCooldown = 8.0;
           if (window.AudioEngine) AudioEngine.playFX('go');
         }
@@ -3100,6 +3213,11 @@
         }
 
         var gripFactor = 1.0;
+
+        if (fuelEnabled && c.fuel < 50.0) {
+          gripFactor *= (0.75 + (c.fuel / 50.0) * 0.25);
+        }
+
         if (isRain) {
           gripFactor *= (0.65 + (1.0 - c.upgrades.rainMult) * 0.35);
         }
@@ -3141,14 +3259,19 @@
           AudioEngine.updateCarEngineSound(c, inp.gas, c.speed, maxSpeed);
         }
 
-        var turnSpeed = 2.3 * gripFactor;
+        // OHJAUKSEN VIIVE JA DYNAAMINEN LUISTO (Nopeutettu kääntyminen)
+        var turnSpeed = 2.8 * gripFactor;
         if(Math.abs(c.speed) > 0.5) {
           var dirFactor = c.speed > 0 ? 1 : -1;
           var leftVal = typeof inp.left === 'number' ? inp.left : (inp.left ? 1 : 0);
           var rightVal = typeof inp.right === 'number' ? inp.right : (inp.right ? 1 : 0);
 
-          if(leftVal > 0) c.angle += turnSpeed * delta * dirFactor * leftVal;
-          if(rightVal > 0) c.angle -= turnSpeed * delta * dirFactor * rightVal;
+          var steerInput = (leftVal - rightVal) * turnSpeed * dirFactor;
+          c.targetAngle = (c.targetAngle || c.angle) + steerInput * delta;
+
+          c.angle = THREE.MathUtils.lerp(c.angle, c.targetAngle, delta * 18.0);
+        } else {
+          c.targetAngle = c.angle;
         }
 
         var forwardX = Math.sin(c.angle);
@@ -3172,13 +3295,27 @@
         var nextZ = c.z + (forwardZ * c.speed + c.driftVz) * delta;
 
         var trackInfo = closestSampleInfo(currentTrack, nextX, nextZ, c.y);
-        var maxLatDistance = TrackGenerator.ROAD_HALF_WIDTH + TrackGenerator.CURB_WIDTH - 0.45;
 
-        if ((tireWearEnabled || damageEnabled) && currentTrack.pitStopArea) {
+        // TUNNELI-KAIKU JA AJOVALOJEN SYTTYMINEN TUNNELISSA
+        c.inTunnel = !!(trackInfo.sample && trackInfo.sample.isTunnel);
+          if (window.AudioEngine && typeof AudioEngine.setTunnelEcho === 'function') {
+            AudioEngine.setTunnelEcho(c, c.inTunnel);
+          }
+
+          // Sytytetään valot jos on yö TAI auto ajaa pimeässä tunnelissa
+          if (c.headlight1 && c.headlight2) {
+            c.headlight1.visible = (currentTimeOfDay === 'yo' || c.inTunnel);
+            c.headlight2.visible = (currentTimeOfDay === 'yo' || c.inTunnel);
+          }
+
+        var sampleHalfWidth = trackInfo.sample ? (trackInfo.sample.isPassingLane ? TrackGenerator.ROAD_HALF_WIDTH * 1.55 : TrackGenerator.ROAD_HALF_WIDTH) : TrackGenerator.ROAD_HALF_WIDTH;
+        var maxLatDistance = sampleHalfWidth + TrackGenerator.CURB_WIDTH - 0.45;
+
+        if (isPitActive && currentTrack.pitStopArea) {
           var pit = currentTrack.pitStopArea;
           var pdx = nextX - pit.x, pdz = nextZ - pit.z;
           if (Math.sqrt(pdx*pdx + pdz*pdz) < pit.radius + 6.0) {
-            maxLatDistance = TrackGenerator.ROAD_HALF_WIDTH + 4.2;
+            maxLatDistance = sampleHalfWidth + 4.2;
           }
         }
 
@@ -3190,7 +3327,7 @@
         }
         c.wrongWay = (c.wrongWayTimer > 1.2);
 
-        var isOnSand = (trackInfo.sample.surface === 1) || (Math.abs(trackInfo.latDist) > TrackGenerator.ROAD_HALF_WIDTH);
+        var isOnSand = (trackInfo.sample.surface === 1) || (Math.abs(trackInfo.latDist) > sampleHalfWidth);
         if (isOnSand) {
           var sandSlow = 0.16 * c.upgrades.sandMult;
           c.speed *= (1.0 - sandSlow * delta);
@@ -3200,19 +3337,51 @@
           }
         }
 
+        // TÖRMÄYS RADAN REUNAAN / SEINÄÄN
         if(Math.abs(trackInfo.latDist) > maxLatDistance) {
           var sign = trackInfo.latDist > 0 ? 1 : -1;
           var s = trackInfo.sample;
           var perpX = -s.tz, perpZ = s.tx;
 
-          nextX = s.x + perpX * (maxLatDistance * sign);
-          nextZ = s.z + perpZ * (maxLatDistance * sign);
-          c.speed *= 0.6;
+          if (curbStyle === 'seinat') {
+            // SEINÄT: Erittäin hento töytäisy ja varma suunnan säilytys radan mukaisesti
+            var bounceDist = maxLatDistance - 0.15;
+            nextX = s.x + perpX * (bounceDist * sign);
+            nextZ = s.z + perpZ * (bounceDist * sign);
 
-          if (damageEnabled && Math.abs(c.speed) > 5.0) {
-            c.damage += delta * 0.15 * c.upgrades.dmgMult;
-            if (c.damage > 1.0) c.damage = 1.0;
-            spawnSparkParticles(nextX, c.y + 0.3, nextZ, 3);
+            c.speed = Math.max(c.speed * 0.94, 6.0 * (c.speed > 0 ? 1 : -1));
+
+            var trackHeading = Math.atan2(s.tx, s.tz);
+            var angleDiff = trackHeading - c.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+            c.angle += angleDiff * Math.min(1.0, delta * 6.0);
+            c.targetAngle = c.angle;
+
+            c.driftVx = lerp(c.driftVx, -perpX * sign * 0.5, delta * 5.0);
+            c.driftVz = lerp(c.driftVz, -perpZ * sign * 0.5, delta * 5.0);
+
+            if (damageEnabled && Math.abs(c.speed) > 5.0) {
+              c.damage += delta * 0.04 * c.upgrades.dmgMult;
+              if (c.damage > 1.0) c.damage = 1.0;
+            }
+
+            if (Math.abs(c.speed) > 6.0) {
+              spawnSparkParticles(nextX, c.y + 0.3, nextZ, 2);
+              if (window.AudioEngine && Math.random() < 0.15) AudioEngine.playFX('collision');
+            }
+          } else {
+            // PYLVÄÄT / PERINTEINEN HYLLÄYS
+            nextX = s.x + perpX * (maxLatDistance * sign);
+            nextZ = s.z + perpZ * (maxLatDistance * sign);
+            c.speed *= 0.6;
+
+            if (damageEnabled && Math.abs(c.speed) > 5.0) {
+              c.damage += delta * 0.15 * c.upgrades.dmgMult;
+              if (c.damage > 1.0) c.damage = 1.0;
+              spawnSparkParticles(nextX, c.y + 0.3, nextZ, 3);
+            }
           }
         }
 
@@ -3245,10 +3414,10 @@
           }
         }
 
-        if ((tireWearEnabled || damageEnabled) && currentTrack.pitStopArea && c.pitCooldown <= 0 && c.pitTimer === 0) {
+        if (isPitActive && currentTrack.pitStopArea && c.pitCooldown <= 0 && c.pitTimer === 0) {
           var pit = currentTrack.pitStopArea;
           var ptx = nextX - pit.x, ptz = nextZ - pit.z;
-          if (Math.sqrt(ptx*ptx + ptz*ptz) < pit.radius && (c.tireWear > 0.10 || c.damage > 0.05)) {
+          if (Math.sqrt(ptx*ptx + ptz*ptz) < pit.radius && (c.tireWear > 0.10 || c.damage > 0.05 || (fuelEnabled && refuelEnabled && c.fuel < 90.0))) {
             c.pitTimer = 3.0;
             c.speed = 0;
             c.driftVx = 0;
@@ -3301,15 +3470,28 @@
       } else {
         var trackLen = currentTrack.totalLength;
         
-        if (tireWearEnabled || damageEnabled) {
+        if (fuelEnabled) {
+          c.fuel -= delta * 0.35;
+          if (c.fuel <= 0) {
+            c.fuel = 0;
+            c.finished = true;
+            c.outOfFuel = true;
+            c.finishRank = ++finishCounter;
+            c.mesh.visible = false;
+            continue;
+          }
+        }
+
+        if (isPitActive && currentTrack.pitStopArea && c.pitCooldown <= 0 && c.pitTimer === 0) {
           c.tireWear += (c.aiSpeed / carMaxSpeedSetting) * delta * 0.022;
-          if ((c.tireWear > 0.75 || c.damage > 0.4) && currentTrack.pitStopArea && c.pitCooldown <= 0 && c.pitTimer === 0) {
+          if (c.tireWear > 0.75 || c.damage > 0.4 || (fuelEnabled && refuelEnabled && c.fuel < 25.0)) {
             var pit = currentTrack.pitStopArea;
             var ptx = c.x - pit.x, ptz = c.z - pit.z;
             if (Math.sqrt(ptx*ptx + ptz*ptz) < pit.radius) {
               c.pitTimer = 3.0;
               c.tireWear = 0.0;
               c.damage = 0.0;
+              if (fuelEnabled && refuelEnabled) c.fuel = 100.0;
               c.pitCooldown = 8.0;
               if (window.AudioEngine) AudioEngine.playFX('varikko');
             }
@@ -3474,7 +3656,7 @@
   --------------------------------------------------------------- */
   var currentTrack=null, terrainInfo=null;
   var terrainMesh=null, roadMesh=null, curbMesh=null, postMesh=null, forestMesh=null, finishLineMesh=null;
-  var bridgeMeshGroup=null, boosterGroup=null, pitStopGroup=null;
+  var bridgeMeshGroup=null, tunnelMeshGroup=null, boosterGroup=null, pitStopGroup=null;
   var treesVisible=true, curbsVisible=true;
 
   function disposeMesh(m){
@@ -3505,10 +3687,10 @@
 
     disposeMesh(terrainMesh); disposeMesh(roadMesh); disposeMesh(curbMesh);
     disposeMesh(postMesh); disposeMesh(forestMesh); disposeMesh(finishLineMesh);
-    disposeMesh(bridgeMeshGroup); disposeMesh(boosterGroup); disposeMesh(pitStopGroup);
+    disposeMesh(bridgeMeshGroup); disposeMesh(tunnelMeshGroup); disposeMesh(boosterGroup); disposeMesh(pitStopGroup);
     clearSkidMarks();
 
-    var track = TrackGenerator.buildTrackPath();
+    var track = TrackGenerator.buildTrackPath(tunnelEnabled, passingLaneEnabled);
     currentTrack = track;
 
     var terr = TrackGenerator.buildTerrain(track, currentEnvironment, currentSeason, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
@@ -3523,6 +3705,11 @@
     
     bridgeMeshGroup = TrackGenerator.buildBridgeStructures(track); scene.add(bridgeMeshGroup);
 
+    if (typeof TrackGenerator.buildTunnelStructure === 'function') {
+      tunnelMeshGroup = TrackGenerator.buildTunnelStructure(track, currentEnvironment, texturesEnabled, loadTextureWithFallback);
+      if (tunnelMeshGroup) scene.add(tunnelMeshGroup);
+    }
+
     if (typeof TrackGenerator.buildBoosters === 'function') {
       var bData = TrackGenerator.buildBoosters(track, boostersEnabled, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
       boosterGroup = bData.group;
@@ -3531,13 +3718,14 @@
     }
 
     if (typeof TrackGenerator.buildPitStop === 'function') {
-      var pData = TrackGenerator.buildPitStop(track, tireWearEnabled || damageEnabled, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
+      var isPitNeeded = tireWearEnabled || damageEnabled || (fuelEnabled && refuelEnabled);
+      var pData = TrackGenerator.buildPitStop(currentTrack, isPitNeeded, texturesEnabled, loadTextureWithFallback, ENV_TEXTURE_PATHS);
       pitStopGroup = pData.group;
-      track.pitStopArea = pData.pitStopArea;
+      currentTrack.pitStopArea = pData.pitStopArea;
       if (pitStopGroup) scene.add(pitStopGroup);
     }
 
-    puddlesList = TrackGenerator.buildPuddles(track, waterGroup, waterEnabled, puddleCubeRenderTarget.texture);
+    puddlesList = TrackGenerator.buildPuddles(track, waterGroup, waterEnabled, puddleCubeRenderTarget.texture, isRain);
     spawnCollectiblesOnTrack();
 
     curbMesh.visible = curbsVisible;
@@ -3728,7 +3916,7 @@
       waterEnabled = !waterEnabled;
       e.target.textContent = waterEnabled ? '🌊 Vesi On' : '🌊 Vesi Off';
       e.target.classList.toggle('active', waterEnabled);
-      if (currentTrack) puddlesList = TrackGenerator.buildPuddles(currentTrack, waterGroup, waterEnabled, puddleCubeRenderTarget.texture);
+      if (currentTrack) puddlesList = TrackGenerator.buildPuddles(currentTrack, waterGroup, waterEnabled, puddleCubeRenderTarget.texture, isRain);
       updatePuddleReflections();
     });
   }
@@ -3960,3 +4148,4 @@
   });
 
 })();
+
