@@ -35,9 +35,11 @@
   }
 
   function rawHeightAt(x, z) {
-    var h1 = fbm(x * 0.011, z * 0.011, 4);
-    var h2 = fbm(x * 0.045 + 50, z * 0.045 + 50, 3);
-    return (h1 * 0.75 + h2 * 0.25) * currentHillAmp;
+    // Ultramatala taajuus (0.0010 ja 0.0008) luo jättimäisiä, kumpuilevia ja valtavan laajoja aavikkodyynejä
+    var dune1 = Math.sin(x * 0.0010 + z * 0.0008) * 3.8;
+    var dune2 = Math.cos(x * 0.0007 - z * 0.0012) * 2.6;
+
+    return dune1 + dune2;
   }
 
   function lineIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
@@ -914,7 +916,9 @@
         groundTexUrl = ENV_TEXTURE_PATHS.kukkamaa || 'kukkamaa.jpg';
       } else if (currentEnvironment === 'suo') {
         groundTexUrl = ENV_TEXTURE_PATHS.suo || 'suo.jpg';
-      } else if (currentSeason === 'talvi' && (currentEnvironment === 'simple' || currentEnvironment === 'simplekuusi' || currentEnvironment === 'simplekoivu' || currentEnvironment === 'kuusi' || currentEnvironment === 'koivu')) {
+      } else if (currentEnvironment === 'pyramidit') {
+        groundTexUrl = ENV_TEXTURE_PATHS.gravel || 'hiekka.jpg';
+      }  else if (currentSeason === 'talvi' && (currentEnvironment === 'simple' || currentEnvironment === 'simplekuusi' || currentEnvironment === 'simplekoivu' || currentEnvironment === 'kuusi' || currentEnvironment === 'koivu')) {
         groundTexUrl = ENV_TEXTURE_PATHS.lumi || 'lumi.jpg';
       } else {
         groundTexUrl = ENV_TEXTURE_PATHS.grass;
