@@ -1,4 +1,4 @@
-// generate.js - Radan ja maaston generointimoottori (Sisältää piirretyn radan 3D-muunnoksen, risteyssillat, matalat seinät & Synthwave-ruudukot)
+// generate.js - Radan ja maaston generointimoottori (Sisältää piirretyn radan 3D-muunnoksen, risteyssillat, matalat seinät, aavikkodyynit & Synthwave-ruudukot)
 (function() {
   'use strict';
 
@@ -407,7 +407,7 @@
     return { dist: Math.sqrt(best), sample: s, sampleIndex: bi, latDist: latDist };
   }
 
-  function terrainSample(track, x, z, currentSeason) {
+  function terrainSample(track, x, z, currentSeason, currentEnvironment) {
     var info = closestSampleInfo(track, x, z);
     var raw = rawHeightAt(x, z);
     var d = info.dist;
@@ -421,19 +421,30 @@
       y = THREE.MathUtils.lerp(info.sample.y - (info.sample.bridgeHeight || 0) - 0.25, raw, t);
       zoneT = t;
     }
-    var shoulder = [0.34, 0.28, 0.19];
-    var patch = smoothNoise(x * 0.05 + 50, z * 0.05 + 50);
 
-    var grassA, grassB;
-    if (currentSeason === 'kesa') {
-      grassA = [0.20, 0.38, 0.13]; grassB = [0.30, 0.47, 0.19];
-    } else if (currentSeason === 'syksy') {
-      grassA = [0.42, 0.35, 0.15]; grassB = [0.55, 0.42, 0.18];
-    } else if (currentSeason === 'talvi') {
-      grassA = [0.85, 0.90, 0.92]; grassB = [0.92, 0.95, 0.97];
+    var shoulder, grassA, grassB, rock;
+
+    // Aavikolla käytetään lämpimiä vaaleankeltaisia hiekan sävyjä ilman vihreää
+    if (currentEnvironment === 'pyramidit') {
+      shoulder = [0.78, 0.65, 0.45];
+      grassA = [0.92, 0.82, 0.58]; // Vaalea oljenkeltainen hiekka
+      grassB = [0.88, 0.75, 0.50]; // Lämmin kultainen hiekka
+      rock = [0.82, 0.70, 0.48];
     } else {
-      grassA = [0.32, 0.52, 0.18]; grassB = [0.45, 0.62, 0.22];
+      shoulder = [0.34, 0.28, 0.19];
+      if (currentSeason === 'kesa') {
+        grassA = [0.20, 0.38, 0.13]; grassB = [0.30, 0.47, 0.19];
+      } else if (currentSeason === 'syksy') {
+        grassA = [0.42, 0.35, 0.15]; grassB = [0.55, 0.42, 0.18];
+      } else if (currentSeason === 'talvi') {
+        grassA = [0.85, 0.90, 0.92]; grassB = [0.92, 0.95, 0.97];
+      } else {
+        grassA = [0.32, 0.52, 0.18]; grassB = [0.45, 0.62, 0.22];
+      }
+      rock = (currentSeason === 'talvi') ? [0.8, 0.85, 0.9] : [0.52, 0.50, 0.46];
     }
+
+    var patch = smoothNoise(x * 0.05 + 50, z * 0.05 + 50);
 
     function lerp3(a, b, t) {
       return [THREE.MathUtils.lerp(a[0], b[0], t), THREE.MathUtils.lerp(a[1], b[1], t), THREE.MathUtils.lerp(a[2], b[2], t)];
@@ -441,7 +452,6 @@
 
     var grass = lerp3(grassA, grassB, patch);
     var heightT = THREE.MathUtils.clamp(raw / (currentHillAmp || 10), 0, 1);
-    var rock = (currentSeason === 'talvi') ? [0.8, 0.85, 0.9] : [0.52, 0.50, 0.46];
     var grassOrRock = lerp3(grass, rock, THREE.MathUtils.smoothstep(heightT, 0.6, 0.95));
     var col = lerp3(shoulder, grassOrRock, zoneT);
     return { y: y, color: col };
@@ -892,7 +902,7 @@
     var colors = new Float32Array(posAttr.count * 3);
     for (var i = 0; i < posAttr.count; i++) {
       var x = posAttr.getX(i), z = posAttr.getZ(i);
-      var ts = terrainSample(track, x, z, currentSeason);
+      var ts = terrainSample(track, x, z, currentSeason, currentEnvironment);
       posAttr.setY(i, ts.y);
       colors[i * 3] = ts.color[0]; colors[i * 3 + 1] = ts.color[1]; colors[i * 3 + 2] = ts.color[2];
     }
@@ -918,12 +928,12 @@
         groundTexUrl = ENV_TEXTURE_PATHS.suo || 'suo.jpg';
       } else if (currentEnvironment === 'pyramidit') {
         groundTexUrl = ENV_TEXTURE_PATHS.gravel || 'hiekka.jpg';
-      }  else if (currentSeason === 'talvi' && (currentEnvironment === 'simple' || currentEnvironment === 'simplekuusi' || currentEnvironment === 'simplekoivu' || currentEnvironment === 'kuusi' || currentEnvironment === 'koivu')) {
+      } else if (currentSeason === 'talvi' && (currentEnvironment === 'simple' || currentEnvironment === 'simplekuusi' || currentEnvironment === 'simplekoivu' || currentEnvironment === 'kuusi' || currentEnvironment === 'koivu')) {
         groundTexUrl = ENV_TEXTURE_PATHS.lumi || 'lumi.jpg';
       } else {
         groundTexUrl = ENV_TEXTURE_PATHS.grass;
       }
-      terrainTex = texturesEnabled ? loadTextureWithFallback(groundTexUrl, size / 6, size / 6, '#3a6628', 'MAA') : null;
+      terrainTex = texturesEnabled ? loadTextureWithFallback(groundTexUrl, size / 6, size / 6, '#d4a373', 'HIEKKA') : null;
     }
 
     var mat = new THREE.MeshStandardMaterial({
