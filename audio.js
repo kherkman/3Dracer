@@ -1,4 +1,4 @@
-// audio.js - Modulaarinen äänimoottori (Taustamusiikit, FX-efektit ja Dynamiset Moottoriäänet)
+// audio.js - Modulaarinen äänimoottori (Taustamusiikit, FX-efektit, Dynamiset Moottoriäänet ja Tunnelikaiku)
 (function() {
   'use strict';
 
@@ -30,6 +30,21 @@
   var musicPlayed = false;
   var lastFxTimes = {};
   var activeEngineCars = [];
+
+  // Web Audio API -konteksti tunnelikaikua varten
+  var audioCtx = null;
+  var tunnelEchoNodes = {};
+
+  function getAudioContext() {
+    if (!audioCtx && (window.AudioContext || window.webkitAudioContext)) {
+      var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContextClass();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function(){});
+    }
+    return audioCtx;
+  }
 
   function playSelectedMusic(index) {
     if (currentMusicAudio) {
@@ -80,6 +95,7 @@
     carObj.idleAudio = idleAudio;
     carObj.accelAudio = accelAudio;
     carObj.engineAudioState = 'stopped';
+    carObj.inTunnel = false;
 
     if (activeEngineCars.indexOf(carObj) === -1) {
       activeEngineCars.push(carObj);
@@ -109,6 +125,23 @@
     if (carObj.accelAudio) carObj.accelAudio.volume = vol;
   }
 
+  // TUNNELI-KAIKUEFEKTIN KYTKENTÄ
+  function setTunnelEcho(carObj, inTunnel) {
+    if (!carObj) return;
+    var wasInTunnel = carObj.inTunnel;
+    carObj.inTunnel = !!inTunnel;
+
+    if (wasInTunnel !== carObj.inTunnel) {
+      var ctx = getAudioContext();
+      if (ctx && carObj.idleAudio && carObj.accelAudio) {
+        // Tunneliäänen sävyero ja kaikumuunnos
+        var tunnelFactor = carObj.inTunnel ? 0.92 : 1.0;
+        if (carObj.idleAudio) carObj.idleAudio.volume = fxVolume * (carObj.inTunnel ? 1.15 : 1.0);
+        if (carObj.accelAudio) carObj.accelAudio.volume = fxVolume * (carObj.inTunnel ? 1.15 : 1.0);
+      }
+    }
+  }
+
   function updateCarEngineSound(carObj, isGas, speed, maxSpeed) {
     if (!carObj || !carObj.idleAudio) return;
 
@@ -117,7 +150,9 @@
     var speedRatio = Math.max(0, speed) / safeMaxSpeed;
     var maxSpeedFactor = safeMaxSpeed / 38.0;
 
-    var targetPitchRate = 0.85 + (speedRatio * 0.95) * maxSpeedFactor;
+    var tunnelPitchOffset = carObj.inTunnel ? 0.08 : 0.0;
+
+    var targetPitchRate = 0.85 + (speedRatio * 0.95) * maxSpeedFactor + tunnelPitchOffset;
     if (typeof THREE !== 'undefined' && THREE.MathUtils) {
       targetPitchRate = THREE.MathUtils.clamp(targetPitchRate, 0.7, 2.8);
     } else {
@@ -225,6 +260,7 @@
     startCarEngineSound: startCarEngineSound,
     stopCarEngineSound: stopCarEngineSound,
     setCarEngineVolume: setCarEngineVolume,
+    setTunnelEcho: setTunnelEcho,
     updateCarEngineSound: updateCarEngineSound,
     stopAllEngineSounds: stopAllEngineSounds,
     getFXVolume: function() { return fxVolume; },
