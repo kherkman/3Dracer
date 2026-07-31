@@ -1,4 +1,4 @@
-// generate.js - Radan ja maaston generointimoottori (Sisältää piirretyn radan 3D-muunnoksen, risteyssillat, matalat seinät, aavikkodyynit & Synthwave-ruudukot)
+// generate.js - Radan ja maaston generointimoottori (Sisältää tunneli- ja ohituskaistalogiikan, sateen lätäköt, risteyssillat, matalat seinät, aavikkodyynit & Synthwave-ruudukot)
 (function() {
   'use strict';
 
@@ -25,20 +25,9 @@
     return v00 + (v10 - v00) * u + (v01 - v00) * v + (v00 - v10 - v01 + v11) * u * v;
   }
 
-  function fbm(x, y, octaves) {
-    var total = 0, amp = 0.5, freq = 1, maxAmp = 0;
-    for (var i = 0; i < octaves; i++) {
-      total += smoothNoise(x * freq, y * freq) * amp;
-      maxAmp += amp; amp *= 0.5; freq *= 2.05;
-    }
-    return total / maxAmp;
-  }
-
   function rawHeightAt(x, z) {
-    // Ultramatala taajuus (0.0010 ja 0.0008) luo jättimäisiä, kumpuilevia ja valtavan laajoja aavikkodyynejä
     var dune1 = Math.sin(x * 0.0010 + z * 0.0008) * 3.8;
     var dune2 = Math.cos(x * 0.0007 - z * 0.0012) * 2.6;
-
     return dune1 + dune2;
   }
 
@@ -53,32 +42,21 @@
     return null;
   }
 
-  // SYNTHWAVE PROSEDURAALISET RUUDUKKOTEKSTUURIT (KOODILLA PIIRRETYT)
   function makeSynthwaveGroundGridTex() {
     var size = 256;
     var c = document.createElement('canvas'); c.width = size; c.height = size;
     var ctx = c.getContext('2d');
-    
-    // Sysimusta / Tummapurppura pohja
     ctx.fillStyle = '#0f001e';
     ctx.fillRect(0, 0, size, size);
-
-    // Neon Magenta ruudukkolinjat
     ctx.strokeStyle = '#ff00aa';
     ctx.lineWidth = 3;
 
     var step = 32;
     for (var x = 0; x <= size; x += step) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, size);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
     }
     for (var y = 0; y <= size; y += step) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(size, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
     }
 
     var tex = new THREE.CanvasTexture(c);
@@ -91,28 +69,16 @@
     var size = 256;
     var c = document.createElement('canvas'); c.width = size; c.height = size;
     var ctx = c.getContext('2d');
-
-    // Tummasävyinen ratapohja
     ctx.fillStyle = '#050b14';
     ctx.fillRect(0, 0, size, size);
-
-    // Neon Cyan ruudukkolinjat ja kaistaraidat
     ctx.strokeStyle = '#00f0ff';
     ctx.lineWidth = 4;
-
     ctx.strokeRect(2, 2, size - 4, size - 4);
-    
-    ctx.beginPath();
-    ctx.moveTo(size / 2, 0);
-    ctx.lineTo(size / 2, size);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2, size); ctx.stroke();
 
     var step = 32;
     for (var y = 0; y <= size; y += step) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(size, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
     }
 
     var tex = new THREE.CanvasTexture(c);
@@ -121,7 +87,40 @@
     return tex;
   }
 
-  function buildTrackPath() {
+  function getSampleHalfWidth(sample) {
+    if (!sample) return ROAD_HALF_WIDTH;
+    return sample.isPassingLane ? (ROAD_HALF_WIDTH * 1.55) : ROAD_HALF_WIDTH;
+  }
+
+  function markSpecialTrackFeatures(samples, n, tunnelEnabled, passingLaneEnabled) {
+    var safeStartEnd = 30; // Ei Start/Finish-kohtaan
+
+    // 1. OHITUSKAISTA (1 suora pätkä)
+    if (passingLaneEnabled) {
+      var passStart = Math.floor(n * 0.22);
+      var passLen = 30;
+      for (var k = 0; k < passLen; k++) {
+        var idx = (passStart + k) % n;
+        if (idx > safeStartEnd && idx < n - safeStartEnd && !samples[idx].bridgeHeight) {
+          samples[idx].isPassingLane = true;
+        }
+      }
+    }
+
+    // 2. TUNNELI (1 suora pätkä)
+    if (tunnelEnabled) {
+      var tunnelStart = Math.floor(n * 0.60);
+      var tunnelLen = 32;
+      for (var k = 0; k < tunnelLen; k++) {
+        var idx = (tunnelStart + k) % n;
+        if (idx > safeStartEnd && idx < n - safeStartEnd && !samples[idx].bridgeHeight && !samples[idx].isPassingLane) {
+          samples[idx].isTunnel = true;
+        }
+      }
+    }
+  }
+
+  function buildTrackPath(tunnelEnabled, passingLaneEnabled) {
     var isBridgeTrack = Math.random() < 0.85;
     var n = 320;
     var ctrl = [];
@@ -168,7 +167,7 @@
       var u = i / n;
       var p = curveWiggly.getPointAt(u);
       var t = curveWiggly.getTangentAt(u).normalize();
-      rawSamples.push({ x: p.x, z: p.z, tx: t.x, tz: t.z, y: 0, bank: 0, dist: 0, surface: 0, bridgeHeight: 0 });
+      rawSamples.push({ x: p.x, z: p.z, tx: t.x, tz: t.z, y: 0, bank: 0, dist: 0, surface: 0, bridgeHeight: 0, isPassingLane: false, isTunnel: false });
     }
 
     var overpassCenter = -1;
@@ -265,6 +264,8 @@
       type = 1 - type;
     }
 
+    markSpecialTrackFeatures(samples, n, tunnelEnabled, passingLaneEnabled);
+
     var trackPoints3D = [];
     for (var i = 0; i < n; i++) {
       trackPoints3D.push(new THREE.Vector3(samples[i].x, samples[i].y + ROAD_ELEVATION, samples[i].z));
@@ -274,8 +275,7 @@
     return { samples: samples, n: n, totalLength: totalLength, curve3D: trackCurve3D, overpassCenter: overpassCenter, underpassCenter: underpassCenter };
   }
 
-  // GENEROIDAAN 3D-RATA PELAAJAN PIIRTÄMISTÄ PISTEISTÄ
-  function buildTrackFromCustomPoints(points2d, canvasW, canvasH) {
+  function buildTrackFromCustomPoints(points2d, canvasW, canvasH, tunnelEnabled, passingLaneEnabled) {
     var n = 320;
     var ctrl = [];
     var cx = canvasW / 2;
@@ -296,7 +296,7 @@
       var u = i / n;
       var p = curveBase.getPointAt(u);
       var t = curveBase.getTangentAt(u).normalize();
-      rawSamples.push({ x: p.x, z: p.z, tx: t.x, tz: t.z, y: 0, bank: 0, dist: 0, surface: 0, bridgeHeight: 0 });
+      rawSamples.push({ x: p.x, z: p.z, tx: t.x, tz: t.z, y: 0, bank: 0, dist: 0, surface: 0, bridgeHeight: 0, isPassingLane: false, isTunnel: false });
     }
 
     var overpassCenter = -1;
@@ -375,6 +375,8 @@
       type = 1 - type;
     }
 
+    markSpecialTrackFeatures(samples, n, tunnelEnabled, passingLaneEnabled);
+
     var trackPoints3D = [];
     for (var i = 0; i < n; i++) {
       trackPoints3D.push(new THREE.Vector3(samples[i].x, samples[i].y + ROAD_ELEVATION, samples[i].z));
@@ -409,26 +411,29 @@
 
   function terrainSample(track, x, z, currentSeason, currentEnvironment) {
     var info = closestSampleInfo(track, x, z);
+    var halfW = getSampleHalfWidth(info.sample);
+    var shoulderEnd = halfW + CURB_WIDTH + 0.3;
+    var blendEnd = shoulderEnd + 11;
+
     var raw = rawHeightAt(x, z);
     var d = info.dist;
     var y, zoneT;
 
-    if (d < SHOULDER_END) {
+    if (d < shoulderEnd) {
       y = info.sample.y - (info.sample.bridgeHeight || 0) - 0.25;
       zoneT = 0;
     } else {
-      var t = THREE.MathUtils.smoothstep(d, SHOULDER_END, BLEND_END);
+      var t = THREE.MathUtils.smoothstep(d, shoulderEnd, blendEnd);
       y = THREE.MathUtils.lerp(info.sample.y - (info.sample.bridgeHeight || 0) - 0.25, raw, t);
       zoneT = t;
     }
 
     var shoulder, grassA, grassB, rock;
 
-    // Aavikolla käytetään lämpimiä vaaleankeltaisia hiekan sävyjä ilman vihreää
     if (currentEnvironment === 'pyramidit') {
       shoulder = [0.78, 0.65, 0.45];
-      grassA = [0.92, 0.82, 0.58]; // Vaalea oljenkeltainen hiekka
-      grassB = [0.88, 0.75, 0.50]; // Lämmin kultainen hiekka
+      grassA = [0.92, 0.82, 0.58];
+      grassB = [0.88, 0.75, 0.50];
       rock = [0.82, 0.70, 0.48];
     } else {
       shoulder = [0.34, 0.28, 0.19];
@@ -460,8 +465,126 @@
   function getRoadSurfaceHeight(track, x, z, carY) {
     var info = closestSampleInfo(track, x, z, carY);
     var s = info.sample;
+    // LASKETAAN KALLISTUS AUTON TODELLISEN SIVUTTAISASEMAN (info.latDist) MUKAAN:
     var bankOffset = Math.sin(s.bank) * info.latDist;
     return s.y + ROAD_ELEVATION + bankOffset;
+  }
+
+  /* ---------------------------------------------------------------
+     TUNNELIN LUONTI & RAKENNE (Pimeä sisus & Todelliset kattovalot)
+  --------------------------------------------------------------- */
+  function buildTunnelStructure(track, currentEnvironment, texturesEnabled, loadTextureWithFallback) {
+    var tGroup = new THREE.Group();
+    if (!track) return tGroup;
+
+    var tunnelSamples = [];
+    for (var i = 0; i < track.n; i++) {
+      if (track.samples[i].isTunnel) tunnelSamples.push(i);
+    }
+    if (tunnelSamples.length < 2) return tGroup;
+
+    var wallH = 5.2;
+    var isSynthwave = (currentEnvironment === 'synthwave');
+    var isHitech = (currentEnvironment === 'hitech');
+
+    var wallTexUrl = isHitech ? 'hi-tech-tunnel.jpg' : 'tunnel.jpg';
+    var wallTex = (texturesEnabled && typeof loadTextureWithFallback === 'function')
+      ? loadTextureWithFallback(wallTexUrl, 1, 1, '#22222d', 'TUNNEL')
+      : null;
+
+    var wallMat, roofMat, lightMat;
+
+    if (isSynthwave) {
+      wallMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true });
+      roofMat = new THREE.MeshBasicMaterial({ color: 0xff00aa, wireframe: true });
+      lightMat = new THREE.MeshBasicMaterial({ color: 0xffee00 });
+    } else {
+      // Tummat materiaalit tunnelin sisälle, jotta yleisvalo ei valaise sitä liikaa
+      wallMat = new THREE.MeshStandardMaterial({
+        map: wallTex, color: 0x22222a, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide
+      });
+      roofMat = new THREE.MeshStandardMaterial({
+        map: wallTex, color: 0x181820, roughness: 0.9, metalness: 0.1, side: THREE.DoubleSide
+      });
+      lightMat = new THREE.MeshBasicMaterial({ color: 0xfffae0 });
+    }
+
+    var lightGeo = new THREE.BoxGeometry(0.8, 0.15, 2.0);
+
+    for (var idx = 0; idx < tunnelSamples.length - 1; idx++) {
+      var i = tunnelSamples[idx];
+      var j = tunnelSamples[idx + 1];
+      var s1 = track.samples[i];
+      var s2 = track.samples[j];
+
+      var halfW1 = getSampleHalfWidth(s1) + 0.4;
+      var halfW2 = getSampleHalfWidth(s2) + 0.4;
+
+      var perp1 = new THREE.Vector3(-s1.tz, 0, s1.tx).normalize();
+      var perp2 = new THREE.Vector3(-s2.tz, 0, s2.tx).normalize();
+
+      var y1 = s1.y + ROAD_ELEVATION;
+      var y2 = s2.y + ROAD_ELEVATION;
+
+      var l1 = new THREE.Vector3(s1.x + perp1.x * halfW1, y1, s1.z + perp1.z * halfW1);
+      var r1 = new THREE.Vector3(s1.x - perp1.x * halfW1, y1, s1.z - perp1.z * halfW1);
+      var l2 = new THREE.Vector3(s2.x + perp2.x * halfW2, y2, s2.z + perp2.z * halfW2);
+      var r2 = new THREE.Vector3(s2.x - perp2.x * halfW2, y2, s2.z - perp2.z * halfW2);
+
+      // Vasen seinä
+      var wallLGeo = new THREE.BufferGeometry();
+      var posL = new Float32Array([
+        l1.x, l1.y, l1.z,  l1.x, l1.y + wallH, l1.z,  l2.x, l2.y + wallH, l2.z,
+        l1.x, l1.y, l1.z,  l2.x, l2.y + wallH, l2.z,  l2.x, l2.y, l2.z
+      ]);
+      wallLGeo.setAttribute('position', new THREE.BufferAttribute(posL, 3));
+      wallLGeo.computeVertexNormals();
+      var meshL = new THREE.Mesh(wallLGeo, wallMat);
+      meshL.castShadow = true; meshL.receiveShadow = true;
+      tGroup.add(meshL);
+
+      // Oikea seinä
+      var wallRGeo = new THREE.BufferGeometry();
+      var posR = new Float32Array([
+        r1.x, r1.y, r1.z,  r2.x, r2.y + wallH, r2.z,  r1.x, r1.y + wallH, r1.z,
+        r1.x, r1.y, r1.z,  r2.x, r2.y, r2.z,        r2.x, r2.y + wallH, r2.z
+      ]);
+      wallRGeo.setAttribute('position', new THREE.BufferAttribute(posR, 3));
+      wallRGeo.computeVertexNormals();
+      var meshR = new THREE.Mesh(wallRGeo, wallMat);
+      meshR.castShadow = true; meshR.receiveShadow = true;
+      tGroup.add(meshR);
+
+      // Kaareva Katto
+      var roofGeo = new THREE.BufferGeometry();
+      var posRoof = new Float32Array([
+        l1.x, l1.y + wallH, l1.z,  r1.x, r1.y + wallH, r1.z,  r2.x, r2.y + wallH, r2.z,
+        l1.x, l1.y + wallH, l1.z,  r2.x, r2.y + wallH, r2.z,  l2.x, l2.y + wallH, l2.z
+      ]);
+      roofGeo.setAttribute('position', new THREE.BufferAttribute(posRoof, 3));
+      roofGeo.computeVertexNormals();
+      var meshRoof = new THREE.Mesh(roofGeo, roofMat);
+      meshRoof.castShadow = true; meshRoof.receiveShadow = true;
+      tGroup.add(meshRoof);
+
+      // Kattovalot + Todelliset pistevalot
+      if (idx % 4 === 0) {
+        var lightMesh = new THREE.Mesh(lightGeo, lightMat);
+        var midX = (s1.x + s2.x) / 2;
+        var midY = (y1 + y2) / 2 + wallH - 0.2;
+        var midZ = (s1.z + s2.z) / 2;
+        lightMesh.position.set(midX, midY, midZ);
+        lightMesh.rotation.y = Math.atan2(s1.tx, s1.tz);
+        tGroup.add(lightMesh);
+
+        // Pistevalo valaisemaan pimeää tunnelia
+        var pLight = new THREE.PointLight(0xfff0cc, 3.2, 22.0);
+        pLight.position.set(midX, midY - 0.4, midZ);
+        tGroup.add(pLight);
+      }
+    }
+
+    return tGroup;
   }
 
   function buildBridgeStructures(track) {
@@ -477,22 +600,24 @@
     for (var k = -28; k <= 28; k += 2) {
       var idx = (track.overpassCenter + k + track.n) % track.n;
       var s = track.samples[idx];
+      var halfW = getSampleHalfWidth(s);
+
       if (s.bridgeHeight && s.bridgeHeight > 1.2) {
         var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
         var roadY = s.y + ROAD_ELEVATION;
 
-        var deckMesh = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2.2, 0.6, 2.2), deckMat);
+        var deckMesh = new THREE.Mesh(new THREE.BoxGeometry(halfW * 2.2, 0.6, 2.2), deckMat);
         deckMesh.position.set(s.x, roadY - 0.35, s.z);
         deckMesh.rotation.y = Math.atan2(s.tx, s.tz);
         deckMesh.castShadow = true;
         bGroup.add(deckMesh);
 
         var r1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 2.2), railMat);
-        r1.position.set(s.x + perp.x * (ROAD_HALF_WIDTH + 0.2), roadY + 0.35, s.z + perp.z * (ROAD_HALF_WIDTH + 0.2));
+        r1.position.set(s.x + perp.x * (halfW + 0.2), roadY + 0.35, s.z + perp.z * (halfW + 0.2));
         r1.rotation.y = Math.atan2(s.tx, s.tz);
 
         var r2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 2.2), railMat);
-        r2.position.set(s.x - perp.x * (ROAD_HALF_WIDTH + 0.2), roadY + 0.35, s.z - perp.z * (ROAD_HALF_WIDTH + 0.2));
+        r2.position.set(s.x - perp.x * (halfW + 0.2), roadY + 0.35, s.z - perp.z * (halfW + 0.2));
         r2.rotation.y = Math.atan2(s.tx, s.tz);
 
         bGroup.add(r1); bGroup.add(r2);
@@ -501,7 +626,7 @@
           var skipPillar = false;
           if (underpassSample) {
             var distToUnderpass = Math.sqrt(Math.pow(s.x - underpassSample.x, 2) + Math.pow(s.z - underpassSample.z, 2));
-            if (distToUnderpass < ROAD_HALF_WIDTH + 4.0) {
+            if (distToUnderpass < halfW + 4.0) {
               skipPillar = true;
             }
           }
@@ -509,11 +634,11 @@
           if (!skipPillar) {
             var pHeight = s.bridgeHeight;
             var p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, pHeight, 8), pillarMat);
-            p1.position.set(s.x + perp.x * (ROAD_HALF_WIDTH + 0.6), roadY - pHeight / 2, s.z + perp.z * (ROAD_HALF_WIDTH + 0.6));
+            p1.position.set(s.x + perp.x * (halfW + 0.6), roadY - pHeight / 2, s.z + perp.z * (halfW + 0.6));
             p1.castShadow = true;
 
             var p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, pHeight, 8), pillarMat);
-            p2.position.set(s.x - perp.x * (ROAD_HALF_WIDTH + 0.6), roadY - pHeight / 2, s.z - perp.z * (ROAD_HALF_WIDTH + 0.6));
+            p2.position.set(s.x - perp.x * (halfW + 0.6), roadY - pHeight / 2, s.z - perp.z * (halfW + 0.6));
             p2.castShadow = true;
 
             bGroup.add(p1); bGroup.add(p2);
@@ -556,11 +681,13 @@
   function buildFinishLine(track) {
     var group = new THREE.Group();
     var s0 = track.samples[0];
+    var halfW = getSampleHalfWidth(s0);
+
     var tangent = new THREE.Vector3(s0.tx, 0, s0.tz).normalize();
     var perp = new THREE.Vector3(-s0.tz, 0, s0.tx).normalize();
 
     var L = 2.4;
-    var W = ROAD_HALF_WIDTH;
+    var W = halfW;
 
     var backCenter = new THREE.Vector3(s0.x, 0, s0.z).addScaledVector(tangent, -L / 2);
     var frontCenter = new THREE.Vector3(s0.x, 0, s0.z).addScaledVector(tangent, L / 2);
@@ -578,23 +705,12 @@
     var frY = getRoadSurfaceHeight(track, frX, frZ) + 0.04;
 
     var positions = new Float32Array([
-      blX, blY, blZ,
-      brX, brY, brZ,
-      flX, flY, flZ,
-      frX, frY, frZ
+      blX, blY, blZ,  brX, brY, brZ,
+      flX, flY, flZ,  frX, frY, frZ
     ]);
 
-    var uvs = new Float32Array([
-      0, 0,
-      1, 0,
-      0, 1,
-      1, 1
-    ]);
-
-    var indices = [
-      0, 2, 1,
-      1, 2, 3
-    ];
+    var uvs = new Float32Array([0, 0,  1, 0,  0, 1,  1, 1]);
+    var indices = [0, 2, 1,  1, 2, 3];
 
     var stripeGeo = new THREE.BufferGeometry();
     stripeGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -619,12 +735,12 @@
     var postGeo = new THREE.CylinderGeometry(0.18, 0.22, 5.5, 12);
     postGeo.translate(0, 2.75, 0);
 
-    var leftX = s0.x + perp.x * (ROAD_HALF_WIDTH + 0.8);
-    var leftZ = s0.z + perp.z * (ROAD_HALF_WIDTH + 0.8);
+    var leftX = s0.x + perp.x * (halfW + 0.8);
+    var leftZ = s0.z + perp.z * (halfW + 0.8);
     var leftY = getRoadSurfaceHeight(track, leftX, leftZ);
 
-    var rightX = s0.x - perp.x * (ROAD_HALF_WIDTH + 0.8);
-    var rightZ = s0.z - perp.z * (ROAD_HALF_WIDTH + 0.8);
+    var rightX = s0.x - perp.x * (halfW + 0.8);
+    var rightZ = s0.z - perp.z * (halfW + 0.8);
     var rightY = getRoadSurfaceHeight(track, rightX, rightZ);
 
     var leftPost = new THREE.Mesh(postGeo, postMat);
@@ -637,7 +753,7 @@
     rightPost.castShadow = true;
     group.add(rightPost);
 
-    var bannerGeo = new THREE.BoxGeometry(ROAD_HALF_WIDTH * 2 + 1.6, 1.2, 0.3);
+    var bannerGeo = new THREE.BoxGeometry(halfW * 2 + 1.6, 1.2, 0.3);
     var bannerTex = makeBannerTexture();
     var bannerMat = [
       postMat, postMat, postMat, postMat,
@@ -655,7 +771,10 @@
     return group;
   }
 
-  function buildPuddles(track, waterGroup, waterEnabled, reflectionTexture) {
+  /* ---------------------------------------------------------------
+     VESILÄTÄKÖT (ENEMMÄN JA SUUREMPIA SATEELLA)
+  --------------------------------------------------------------- */
+  function buildPuddles(track, waterGroup, waterEnabled, reflectionTexture, isRain) {
     puddlesList = [];
     while (waterGroup.children.length > 0) {
       var obj = waterGroup.children[0];
@@ -672,7 +791,7 @@
       if (y > maxY) maxY = y;
     }
 
-    var waterLevel = minY + (maxY - minY) * 0.28;
+    var waterLevel = minY + (maxY - minY) * (isRain ? 0.45 : 0.28);
     var pMat = new THREE.MeshStandardMaterial({
       color: 0x3a6073,
       roughness: 0.02,
@@ -683,11 +802,16 @@
       side: THREE.DoubleSide
     });
 
-    for (var i = 10; i < track.n - 10; i += 18) {
+    var step = isRain ? 9 : 18; // Tiheämmin sateella
+
+    for (var i = 10; i < track.n - 10; i += step) {
       var s = track.samples[i];
-      if (s.y < waterLevel && (!s.bridgeHeight || s.bridgeHeight < 1.0)) {
-        var rx = ROAD_HALF_WIDTH * 0.75;
-        var rz = 3.0 + Math.random() * 2.5;
+      if (s.y < waterLevel && (!s.bridgeHeight || s.bridgeHeight < 1.0) && !s.isTunnel) {
+        var halfW = getSampleHalfWidth(s);
+        var baseR = halfW * (isRain ? 1.15 : 0.75);
+        var rx = baseR;
+        var rz = (3.0 + Math.random() * 2.5) * (isRain ? 1.8 : 1.0);
+
         var circleGeo = new THREE.CircleGeometry(rx, 16);
         circleGeo.rotateX(-Math.PI / 2);
         circleGeo.scale(1, 1, rz / rx);
@@ -749,9 +873,10 @@
     for (var k = 0; k < boosterIndices.length; k++) {
       var idx = boosterIndices[k];
       var s = track.samples[idx];
-      if (!s || (s.bridgeHeight && s.bridgeHeight > 1.0)) continue;
+      if (!s || (s.bridgeHeight && s.bridgeHeight > 1.0) || s.isTunnel) continue;
 
-      var w = ROAD_HALF_WIDTH * 1.8;
+      var halfW = getSampleHalfWidth(s);
+      var w = halfW * 1.8;
       var h = 3.6;
       var geo = new THREE.PlaneGeometry(w, h);
       geo.rotateX(-Math.PI / 2);
@@ -777,8 +902,9 @@
     var s = track.samples[pitIdx];
     if (!s) return { group: pGroup, pitStopArea: pitStopArea };
 
+    var halfW = getSampleHalfWidth(s);
     var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
-    var sideDist = ROAD_HALF_WIDTH + 1.2;
+    var sideDist = halfW + 1.2;
 
     var px = s.x + perp.x * sideDist;
     var pz = s.z + perp.z * sideDist;
@@ -951,13 +1077,15 @@
     var positions = [], uvs = [];
     for (var i = 0; i < n; i++) {
       var s = samples[i];
+      var halfW = getSampleHalfWidth(s);
+
       var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
-      var bankOffset = Math.sin(s.bank) * ROAD_HALF_WIDTH;
+      var bankOffset = Math.sin(s.bank) * halfW;
       var baseSurfaceY = s.y + ROAD_ELEVATION;
       var leftY = baseSurfaceY + bankOffset;
       var rightY = baseSurfaceY - bankOffset;
-      var lx = s.x + perp.x * ROAD_HALF_WIDTH, lz = s.z + perp.z * ROAD_HALF_WIDTH;
-      var rx = s.x - perp.x * ROAD_HALF_WIDTH, rz = s.z - perp.z * ROAD_HALF_WIDTH;
+      var lx = s.x + perp.x * halfW, lz = s.z + perp.z * halfW;
+      var rx = s.x - perp.x * halfW, rz = s.z - perp.z * halfW;
       positions.push(lx, leftY, lz, rx, rightY, rz);
       
       var v = s.dist / 12.0;
@@ -1006,16 +1134,19 @@
     var n = track.n, samples = track.samples;
     var positions = [], colors = [], indices = [];
     var blockLen = 4.0;
+
     function addSide(sideSign) {
       var vertsStart = positions.length / 3;
       for (var i = 0; i < n; i++) {
         var s = samples[i];
+        var halfW = getSampleHalfWidth(s);
+
         var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
-        var bankOffset = Math.sin(s.bank) * ROAD_HALF_WIDTH;
+        var bankOffset = Math.sin(s.bank) * halfW;
         var edgeY = s.y + ROAD_ELEVATION + sideSign * bankOffset;
-        var innerR = ROAD_HALF_WIDTH;
-        var midR = ROAD_HALF_WIDTH + CURB_WIDTH * 0.55;
-        var outerR = ROAD_HALF_WIDTH + CURB_WIDTH;
+        var innerR = halfW;
+        var midR = halfW + CURB_WIDTH * 0.55;
+        var outerR = halfW + CURB_WIDTH;
         var ix = s.x + perp.x * innerR * sideSign, iz = s.z + perp.z * innerR * sideSign;
         var mx = s.x + perp.x * midR * sideSign, mz = s.z + perp.z * midR * sideSign;
         var ox = s.x + perp.x * outerR * sideSign, oz = s.z + perp.z * outerR * sideSign;
@@ -1071,7 +1202,6 @@
     return merged;
   }
 
-  // REUNAN TYYLIT (PYLVÄÄT TAI YHTENÄISET MATALAT HARMAAT SEINÄT)
   function buildDelineators(track, curbStyle) {
     var n = track.n, samples = track.samples;
 
@@ -1084,11 +1214,13 @@
         var vertsStart = positions.length / 3;
         for (var i = 0; i < n; i++) {
           var s = samples[i];
+          var halfW = getSampleHalfWidth(s);
+
           var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
-          var bankOffset = Math.sin(s.bank) * ROAD_HALF_WIDTH;
+          var bankOffset = Math.sin(s.bank) * halfW;
           var baseEdgeY = s.y + ROAD_ELEVATION + sideSign * bankOffset;
 
-          var innerR = ROAD_HALF_WIDTH + CURB_WIDTH + 0.05;
+          var innerR = halfW + CURB_WIDTH + 0.05;
           var outerR = innerR + wallW;
 
           var ix = s.x + perp.x * innerR * sideSign, iz = s.z + perp.z * innerR * sideSign;
@@ -1097,8 +1229,6 @@
           var bY = baseEdgeY;
           var tY = baseEdgeY + wallH;
 
-          // 4 pistettä poikkileikkaukselle at i:
-          // 0: sisäpohja, 1: sisäylä, 2: ulkoylä, 3: ulkopohja
           positions.push(ix, bY, iz, ix, tY, iz, ox, tY, oz, ox, bY, oz);
         }
 
@@ -1107,17 +1237,14 @@
           var b1 = vertsStart + i * 4;
           var b2 = vertsStart + j * 4;
 
-          // Sisäseinä
           indices.push(b1 + 0, b1 + 1, b2 + 1, b1 + 0, b2 + 1, b2 + 0);
-          // Päällinen (kansi)
           indices.push(b1 + 1, b1 + 2, b2 + 2, b1 + 1, b2 + 2, b2 + 1);
-          // Ulkoseinä
           indices.push(b1 + 2, b1 + 3, b2 + 3, b1 + 2, b2 + 3, b2 + 2);
         }
       }
 
-      addWallSide(1);  // Vasen puoli
-      addWallSide(-1); // Oikea puoli
+      addWallSide(1);
+      addWallSide(-1);
 
       var geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
@@ -1125,19 +1252,14 @@
       geo.computeVertexNormals();
 
       var wallMat = new THREE.MeshStandardMaterial({
-        color: 0x7a8288,
-        roughness: 0.65,
-        metalness: 0.25,
-        side: THREE.DoubleSide
+        color: 0x7a8288, roughness: 0.65, metalness: 0.25, side: THREE.DoubleSide
       });
 
       var wallMesh = new THREE.Mesh(geo, wallMat);
-      wallMesh.castShadow = true;
-      wallMesh.receiveShadow = true;
+      wallMesh.castShadow = true; wallMesh.receiveShadow = true;
       return wallMesh;
     }
 
-    // Oletus: Pylväät
     var postGeo = new THREE.CylinderGeometry(0.06, 0.08, 0.8, 6); postGeo.translate(0, 0.4, 0);
     var capGeo = new THREE.ConeGeometry(0.1, 0.2, 6); capGeo.translate(0, 0.9, 0);
     var merged = mergeGeometries([postGeo, capGeo]);
@@ -1145,11 +1267,12 @@
     var list = [];
     for (var i = 0; i < n; i += step) {
       var s = samples[i];
+      var halfW = getSampleHalfWidth(s);
       var perp = new THREE.Vector3(-s.tz, 0, s.tx).normalize();
       var side = (Math.floor(i / step) % 2 === 0) ? 1 : -1;
-      var r = ROAD_HALF_WIDTH + CURB_WIDTH + 0.35;
+      var r = halfW + CURB_WIDTH + 0.35;
       var x = s.x + perp.x * r * side, z = s.z + perp.z * r * side;
-      var bankOffset = Math.sin(s.bank) * ROAD_HALF_WIDTH;
+      var bankOffset = Math.sin(s.bank) * halfW;
       var y = s.y + ROAD_ELEVATION + side * bankOffset;
       list.push({ x: x, y: y, z: z, block: Math.floor(s.dist / 4.0) % 2 });
     }
@@ -1169,8 +1292,10 @@
   }
 
   function buildForest(track, bounds, currentEnvironment, currentSeason, currentTimeOfDay, texturesEnabled, loadTextureWithFallback, CITY_TEXTURE_PATHS, HITECH_TEXTURE_PATHS, CAR_TEXTURE_PATHS) {
+    var forestGroup = new THREE.Group();
+
     if (window.ENV_BUILDERS && typeof window.ENV_BUILDERS[currentEnvironment] === 'function') {
-      return window.ENV_BUILDERS[currentEnvironment](track, bounds, {
+      var envObjects = window.ENV_BUILDERS[currentEnvironment](track, bounds, {
         currentSeason: currentSeason,
         currentTimeOfDay: currentTimeOfDay,
         texturesEnabled: texturesEnabled,
@@ -1184,8 +1309,10 @@
         HITECH_TEXTURE_PATHS: HITECH_TEXTURE_PATHS,
         CAR_TEXTURE_PATHS: CAR_TEXTURE_PATHS
       });
+      if (envObjects) forestGroup.add(envObjects);
     }
-    return new THREE.Group();
+
+    return forestGroup;
   }
 
   function resetNoiseSeed() {
@@ -1204,6 +1331,7 @@
     terrainSample: terrainSample,
     getRoadSurfaceHeight: getRoadSurfaceHeight,
     buildBridgeStructures: buildBridgeStructures,
+    buildTunnelStructure: buildTunnelStructure,
     buildFinishLine: buildFinishLine,
     buildPuddles: buildPuddles,
     buildBoosters: buildBoosters,
