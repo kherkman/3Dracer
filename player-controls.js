@@ -19,7 +19,7 @@
   var gyroInputState = { gas:false, brake:false, left:false, right:false };
   var mouseState = { leftDown: false, rightDown: false, xNorm: 0 };
 
-  // ALUSTETAAN GYRO / LAITTEEN ASENTOANTURI
+  // ALUSTETAAN DYNAAMINEN GYRO / LAITTEEN ASENTOANTURI
   function initGyro() {
     if (typeof window === 'undefined' || !window.DeviceOrientationEvent) return;
 
@@ -43,7 +43,7 @@
         tiltDeg = beta - 35; // 35 asteen lepoasento
       }
 
-      // Kääntäminen ratin tapaan
+      // DYNAAMINEN KÄÄNTÄMINEN RATIN TAPAAN (0.0 - 1.0)
       var deadzoneSteer = 4;
       var maxSteer = 30;
       var absSteer = Math.abs(steerDeg);
@@ -162,7 +162,7 @@
     });
   }
 
-  // 1. DYNAAMINEN JOYSTICK-OHJAUS (SÄÄDETTY KÄÄNTYMINEN ALKAMAAN 30 ASTEESSA, DYNAAMINEN KÄÄNTÖVOIMA)
+  // 1. DYNAAMINEN JOYSTICK-OHJAUS (steerThreshold = 10 ASTETTA, DYNAAMINEN KÄÄNTÖVOIMA)
   function bindJoystickForPlayer(playerIdx) {
     var container = document.getElementById('touchP' + (playerIdx + 1));
     if (!container) return;
@@ -218,13 +218,13 @@
       var distNorm = Math.min(1.0, dist / maxRadius);
       var angleFromVertical = Math.atan2(Math.abs(clampDx), Math.abs(clampDy)) * (180 / Math.PI);
 
-      // Kääntyminen alkaa 10 asteessa ja saavuttaa maksimin 90 asteessa
+      // Kääntyminen alkaa 10 asteessa (steerThreshold = 10) ja saavuttaa maksimin 90 asteessa
       var steerThreshold = 10;
       var maxAngle = 90;
 
-      if (distNorm > 0.18 && angleFromVertical > steerThreshold) {
+      if (distNorm > 0.15 && angleFromVertical > steerThreshold) {
         var steerFactor = Math.min(1.0, (angleFromVertical - steerThreshold) / (maxAngle - steerThreshold));
-        steerFactor *= distNorm; // Painotetaan myös etäisyydellä
+        steerFactor *= distNorm; // Painotetaan etäisyydellä
 
         if (clampDx < 0) {
           touchInputState[playerIdx].left = steerFactor;
@@ -238,8 +238,8 @@
         touchInputState[playerIdx].right = false;
       }
 
-      touchInputState[playerIdx].gas = (distNorm > 0.18) && (clampDy < -8);
-      touchInputState[playerIdx].brake = (distNorm > 0.18) && (clampDy > 8);
+      touchInputState[playerIdx].gas = (distNorm > 0.15) && (clampDy < -8);
+      touchInputState[playerIdx].brake = (distNorm > 0.15) && (clampDy > 8);
     }
 
     function handlePointerUp(e) {
@@ -259,7 +259,7 @@
     container.addEventListener('pointercancel', handlePointerUp);
   }
 
-  // 2. KIINTEÄ RATTI-JOYSTICK (DYNAAMINEN KÄÄNTYMINEN & RATIN ANIMAATIO)
+  // 2. RATTI-JOYSTICK VASEMMASSA ALAKULMASSA (steerThreshold/deadzone = 10, DYNAAMINEN KÄÄNTÖ)
   function bindWheelAndPedalsForPlayer(playerIdx) {
     var container = document.getElementById('touchWheelP' + (playerIdx + 1));
     if (!container) return;
@@ -273,8 +273,8 @@
 
     var activeWheelPointerId = null;
     var startX = 0;
-    var maxRange = 55; // Vaakaliikkeen maksimietäisyys (px)
-    var deadzone = 8;   // Kääntökuolionalue (px)
+    var maxRange = 55;  // Vaakaliikkeen maksimietäisyys (px)
+    var deadzone = 10;   // Kuolionalue/Kynnysarvo (steerThreshold = 10)
 
     function handleWheelDown(e) {
       if (activeWheelPointerId !== null) return;
@@ -293,14 +293,14 @@
       var dx = e.clientX - startX;
       var clampDx = Math.max(-maxRange, Math.min(maxRange, dx));
 
-      // ANIMATIO: Ratti kääntyy visuaalisesti ja siirtyy samalla vaakasuunnassa
-      var rotDeg = (clampDx / maxRange) * 85; // Visuaalinen kääntökulma 0-85 astetta
+      // ANIMATIO: Ratti kääntyy visuaalisesti ja siirtyy vaakasuunnassa
+      var rotDeg = (clampDx / maxRange) * 85;
 
       if (handle) {
         handle.style.transform = 'translate(calc(-50% + ' + clampDx + 'px), -50%) rotate(' + rotDeg + 'deg)';
       }
 
-      // DYNAAMINEN KÄÄNTÖVOIMA (0.0 - 1.0):
+      // DYNAAMINEN KÄÄNTÖVOIMA (0.0 - 1.0) KYNNYSARVOLLA 10
       var absDx = Math.abs(clampDx);
       if (absDx > deadzone) {
         var steerFactor = Math.min(1.0, (absDx - deadzone) / (maxRange - deadzone));
