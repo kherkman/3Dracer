@@ -465,13 +465,12 @@
   function getRoadSurfaceHeight(track, x, z, carY) {
     var info = closestSampleInfo(track, x, z, carY);
     var s = info.sample;
-    // LASKETAAN KALLISTUS AUTON TODELLISEN SIVUTTAISASEMAN (info.latDist) MUKAAN:
     var bankOffset = Math.sin(s.bank) * info.latDist;
     return s.y + ROAD_ELEVATION + bankOffset;
   }
 
   /* ---------------------------------------------------------------
-     TUNNELIN LUONTI & RAKENNE (Pimeä sisus & Todelliset kattovalot)
+     TUNNELIN LUONTI & RAKENNE (KORJATTU TEKSTUURIN NÄKYVYYS)
   --------------------------------------------------------------- */
   function buildTunnelStructure(track, currentEnvironment, texturesEnabled, loadTextureWithFallback) {
     var tGroup = new THREE.Group();
@@ -489,8 +488,14 @@
 
     var wallTexUrl = isHitech ? 'hi-tech-tunnel.jpg' : 'tunnel.jpg';
     var wallTex = (texturesEnabled && typeof loadTextureWithFallback === 'function')
-      ? loadTextureWithFallback(wallTexUrl, 1, 1, '#22222d', 'TUNNEL')
+      ? loadTextureWithFallback(wallTexUrl, 1, 4, '#888888', 'TUNNEL')
       : null;
+
+    if (wallTex) {
+      wallTex.wrapS = THREE.RepeatWrapping;
+      wallTex.wrapT = THREE.RepeatWrapping;
+      wallTex.repeat.set(1, 4);
+    }
 
     var wallMat, roofMat, lightMat;
 
@@ -499,12 +504,20 @@
       roofMat = new THREE.MeshBasicMaterial({ color: 0xff00aa, wireframe: true });
       lightMat = new THREE.MeshBasicMaterial({ color: 0xffee00 });
     } else {
-      // Tummat materiaalit tunnelin sisälle, jotta yleisvalo ei valaise sitä liikaa
+      // VALOISA POHJAVÄRI (#ffffff), jotta tunnelin JPG-tekstuuri erottuu selkeästi pimeän sijaan!
       wallMat = new THREE.MeshStandardMaterial({
-        map: wallTex, color: 0x22222a, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide
+        map: wallTex,
+        color: 0xffffff,
+        roughness: 0.6,
+        metalness: 0.1,
+        side: THREE.DoubleSide
       });
       roofMat = new THREE.MeshStandardMaterial({
-        map: wallTex, color: 0x181820, roughness: 0.9, metalness: 0.1, side: THREE.DoubleSide
+        map: wallTex,
+        color: 0xdddddd,
+        roughness: 0.7,
+        metalness: 0.1,
+        side: THREE.DoubleSide
       });
       lightMat = new THREE.MeshBasicMaterial({ color: 0xfffae0 });
     }
@@ -577,7 +590,6 @@
         lightMesh.rotation.y = Math.atan2(s1.tx, s1.tz);
         tGroup.add(lightMesh);
 
-        // Pistevalo valaisemaan pimeää tunnelia
         var pLight = new THREE.PointLight(0xfff0cc, 3.2, 22.0);
         pLight.position.set(midX, midY - 0.4, midZ);
         tGroup.add(pLight);
@@ -772,7 +784,7 @@
   }
 
   /* ---------------------------------------------------------------
-     VESILÄTÄKÖT (ENEMMÄN JA SUUREMPIA SATEELLA)
+     VESILÄTÄKÖT
   --------------------------------------------------------------- */
   function buildPuddles(track, waterGroup, waterEnabled, reflectionTexture, isRain) {
     puddlesList = [];
@@ -802,7 +814,7 @@
       side: THREE.DoubleSide
     });
 
-    var step = isRain ? 9 : 18; // Tiheämmin sateella
+    var step = isRain ? 9 : 18;
 
     for (var i = 10; i < track.n - 10; i += step) {
       var s = track.samples[i];
