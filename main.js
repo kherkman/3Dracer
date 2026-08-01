@@ -82,13 +82,14 @@
   var targetLaps = 3;
 
   var playerConfigs = [
-    { name: "Pelaaja 1", ctrl: defaultControlMethod, color: "#d42419", texIdx: 1, model: "simple" },
-    { name: "Pelaaja 2", ctrl: defaultControlMethod, color: "#28a745", texIdx: 2, model: "simple" },
-    { name: "Pelaaja 3", ctrl: defaultControlMethod, color: "#eb8b00", texIdx: 3, model: "simple" },
-    { name: "Pelaaja 4", ctrl: defaultControlMethod, color: "#8e24aa", texIdx: 4, model: "simple" }
+    { name: "Pelaaja 1", ctrl: defaultControlMethod, color: "#d42419", texIdx: 1, model: "forder" },
+    { name: "Pelaaja 2", ctrl: defaultControlMethod, color: "#28a745", texIdx: 1, model: "forder" },
+    { name: "Pelaaja 3", ctrl: defaultControlMethod, color: "#eb8b00", texIdx: 1, model: "forder" },
+    { name: "Pelaaja 4", ctrl: defaultControlMethod, color: "#8e24aa", texIdx: 1, model: "forder" }
   ];
 
   var previewScenes = [];
+  var pendingUploadPlayerIdx = null;
 
   var ENV_TEXTURE_PATHS = {
     grass: 'nurmikko.jpg',
@@ -133,12 +134,14 @@
   ];
 
   var CAR_MODELS_LIST = [
-    { id: 'simple', name: 'Simple (Perus)' },
+    { id: 'forder', name: 'Forder' },
     { id: 'porcher', name: 'Porcher' },
     { id: 'lotuser', name: 'Lotuser' },
     { id: 'pontiacer', name: 'Pontiacer' },
     { id: 'lambo', name: 'Lambo' },
-    { id: 'ferrarer', name: 'Ferrarer' }
+    { id: 'ferrarer', name: 'Ferrarer' },
+    { id: 'simple', name: 'Simple (Perus)' },
+    { id: 'custom_upload', name: '➕ Lataa oma malli...' }
   ];
 
   var PRESET_PALETTES = [
@@ -514,6 +517,101 @@
   }
 
   /* ---------------------------------------------------------------
+     OMAN JS-AUTOMALLIN LATAAMINEN & SÄÄTÖ
+  --------------------------------------------------------------- */
+  function initCustomCarFileLoader() {
+    var customFileInput = document.getElementById('customCarFileInput');
+    if (!customFileInput) return;
+
+    customFileInput.addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (!file) {
+        revertSelect();
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        var code = evt.target.result;
+        var existingKeys = Object.keys(window.CAR_MODELS || {});
+
+        try {
+          var scriptEl = document.createElement('script');
+          scriptEl.textContent = code;
+          document.body.appendChild(scriptEl);
+
+          var newKeys = Object.keys(window.CAR_MODELS || {}).filter(function(k) {
+            return existingKeys.indexOf(k) === -1;
+          });
+
+          var newModelKey = newKeys.length > 0 ? newKeys[newKeys.length - 1] : null;
+
+          if (!newModelKey) {
+            var allKeys = Object.keys(window.CAR_MODELS || {});
+            if (allKeys.length > 0) newModelKey = allKeys[allKeys.length - 1];
+          }
+
+          if (newModelKey) {
+            var friendlyName = 'Ladattu: ' + newModelKey;
+            var customIndex = CAR_MODELS_LIST.findIndex(function(m) { return m.id === 'custom_upload'; });
+            if (customIndex !== -1) {
+              CAR_MODELS_LIST.splice(customIndex, 0, { id: newModelKey, name: friendlyName });
+            } else {
+              CAR_MODELS_LIST.push({ id: newModelKey, name: friendlyName });
+            }
+
+            refreshCarModelSelects();
+
+            if (pendingUploadPlayerIdx !== null) {
+              playerConfigs[pendingUploadPlayerIdx].model = newModelKey;
+              var container = document.getElementById('modalCardsContainer');
+              if (container) {
+                var sel = container.querySelector('.car-model-select[data-player="' + pendingUploadPlayerIdx + '"]');
+                if (sel) sel.value = newModelKey;
+              }
+              updatePreviewMesh(pendingUploadPlayerIdx);
+            }
+          } else {
+            alert('⚠️ Tiedostosta ei löytynyt yhteensopivaa window.CAR_MODELS -mallia!');
+            revertSelect();
+          }
+        } catch (err) {
+          alert('⚠️ Virhe ladattaessa automallia: ' + err.message);
+          revertSelect();
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function revertSelect() {
+    if (pendingUploadPlayerIdx !== null) {
+      var container = document.getElementById('modalCardsContainer');
+      if (container) {
+        var sel = container.querySelector('.car-model-select[data-player="' + pendingUploadPlayerIdx + '"]');
+        if (sel) sel.value = playerConfigs[pendingUploadPlayerIdx].model;
+      }
+    }
+  }
+
+  function refreshCarModelSelects() {
+    var container = document.getElementById('modalCardsContainer');
+    if (!container) return;
+    container.querySelectorAll('.car-model-select').forEach(function(ms) {
+      var pIdx = parseInt(ms.getAttribute('data-player'));
+      var curVal = playerConfigs[pIdx].model;
+      ms.innerHTML = '';
+      CAR_MODELS_LIST.forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name;
+        if (m.id === curVal) opt.selected = true;
+        ms.appendChild(opt);
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------
      PELAAJIEN ASETUKSET JA ESIKATSELU
   --------------------------------------------------------------- */
   function clearPreviews() {
@@ -609,8 +707,19 @@
     container.querySelectorAll('.car-model-select').forEach(function(ms) {
       ms.addEventListener('change', function(e) {
         var pIdx = parseInt(e.target.getAttribute('data-player'));
-        playerConfigs[pIdx].model = e.target.value;
-        updatePreviewMesh(pIdx);
+        var selectedVal = e.target.value;
+
+        if (selectedVal === 'custom_upload') {
+          pendingUploadPlayerIdx = pIdx;
+          var fileInput = document.getElementById('customCarFileInput');
+          if (fileInput) {
+            fileInput.value = '';
+            fileInput.click();
+          }
+        } else {
+          playerConfigs[pIdx].model = selectedVal;
+          updatePreviewMesh(pIdx);
+        }
       });
     });
 
@@ -710,6 +819,30 @@
     playerModal.style.display = 'none';
     clearPreviews();
   });
+
+  // AUTOEDITORIN NAPIN & MODAALIN TAPAHTUMAT
+  var openCarEditorBtn = document.getElementById('openCarEditorBtn');
+  var carEditorModal = document.getElementById('carEditorModal');
+  var carEditorFrame = document.getElementById('carEditorFrame');
+  var closeCarEditorModalBtn = document.getElementById('closeCarEditorModalBtn');
+
+  if (openCarEditorBtn) {
+    openCarEditorBtn.addEventListener('click', function() {
+      if (carEditorModal) {
+        carEditorModal.style.display = 'flex';
+        if (carEditorFrame) carEditorFrame.src = 'car_editor.html';
+      }
+    });
+  }
+
+  if (closeCarEditorModalBtn) {
+    closeCarEditorModalBtn.addEventListener('click', function() {
+      if (carEditorModal) {
+        carEditorModal.style.display = 'none';
+        if (carEditorFrame) carEditorFrame.src = '';
+      }
+    });
+  }
 
   /* ---------------------------------------------------------------
      ASETUKSET-MODAALI SÄÄDÖT
@@ -2050,6 +2183,7 @@
   --------------------------------------------------------------- */
   setupIntroOverlay();
   initDrawCanvasEvents();
+  initCustomCarFileLoader();
 
   if (window.GameCore) {
     GameCore.init({
