@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Automallin Editointiohjelma - Studio</title>
+  <style>
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0; padding: 0; width: 100vw; height: 100vh;
+      overflow: hidden; background-color: #ffffff;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #1e293b;
+    }
+
+    /* YLÄPALKKI / TOOLBAR */
+    #toolbar {
+      position: absolute; top: 0; left: 0; right: 0; height: 50px;
+      background: #11131a; border-bottom: 1px solid #232734;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 15px; z-index: 100; color: #fff;
+    }
+    .brand { font-weight: 800; font-size: 16px; color: #f59e0b; letter-spacing: 1.5px; }
+    .btn-group { display: flex; gap: 8px; align-items: center; }
+    
+    select.model-select {
+      background: #1e2436; color: #f59e0b; border: 1px solid #f59e0b;
+      padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 700;
+      cursor: pointer; outline: none;
+    }
+
+    button, label.btn-upload {
+      background: #2563eb; color: #fff; border: none; padding: 7px 14px;
+      border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 5px;
+    }
+    button:hover, label.btn-upload:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary { background: #1e2230; color: #cbd5e1; border: 1px solid #334155; }
+    button.secondary:hover:not(:disabled) { background: #2a3146; color: #fff; }
+    button.active { background: #10b981; }
+
+    /* PÄÄALUE: KANKAAT JA SIVUPANEELI */
+    #main-container {
+      position: absolute; top: 50px; bottom: 0; left: 0; right: 320px;
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      gap: 2px; background: #e2e8f0; transition: right 0.2s;
+    }
+    #main-container.full-width { right: 0; }
+    #main-container.mode-3d { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+
+    /* CANVAS COVERAGE */
+    #main-container canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 1;
+    }
+
+    .viewport {
+      position: relative; background: transparent; overflow: hidden; width: 100%; height: 100%;
+      pointer-events: none; z-index: 2;
+    }
+    #main-container.mode-3d .viewport:not(#vp-3d) { display: none; }
+
+    /* VIEWPORT OTSAKE JA SÄÄTIMET OVERLAY */
+    .viewport-label {
+      position: absolute; top: 8px; left: 8px; right: 8px; z-index: 10;
+      background: rgba(11, 13, 19, 0.85); padding: 5px 10px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; color: #f59e0b; pointer-events: auto;
+      border: 1px solid rgba(245, 158, 11, 0.2); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .vp-title {
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #f59e0b;
+      min-width: 110px;
+    }
+    .vp-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .vp-btn {
+      background: #1e2436;
+      color: #3b82f6;
+      border: 1px solid #334155;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .vp-btn:hover {
+      background: #2563eb;
+      color: #fff;
+    }
+    .zoom-box {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #cbd5e1;
+    }
+    .zoom-box input[type="range"] {
+      width: 60px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
+    /* SIVUPANEELI / EDITOINTITYÖKALUT */
+    #sidebar {
+      position: absolute; top: 50px; bottom: 0; right: 0; width: 320px;
+      background: #0f1117; border-left: 1px solid #232734;
+      display: flex; flex-direction: column; z-index: 90; overflow-y: auto; color: #fff;
+    }
+    .panel-section { padding: 14px; border-bottom: 1px solid #232734; }
+    .panel-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 10px; letter-spacing: 0.8px; }
+
+    .control-group { margin-bottom: 10px; }
+    .control-group label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+    .control-group input[type="text"], .control-group select {
+      width: 100%; background: #181b26; border: 1px solid #334155; color: #fff;
+      padding: 6px 10px; border-radius: 4px; font-size: 13px;
+    }
+    .color-picker-row { display: flex; gap: 8px; align-items: center; }
+    .color-picker-row input[type="color"] {
+      border: none; width: 36px; height: 32px; border-radius: 4px; cursor: pointer; background: transparent;
+    }
+
+    /* PANEELIN ILMOITUSBANNERI */
+    #toast-message {
+      display: none;
+      background: #10b981;
+      color: #ffffff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      margin: 12px 14px 0 14px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* NAPPI- JA INPUT-OHJAIMET */
+    .step-control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .coord-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .coord-row label {
+      font-size: 11px;
+      color: #94a3b8;
+      width: 42px;
+      font-weight: 700;
+    }
+    .step-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+    }
+    .step-btn {
+      background: #1e2436;
+      color: #3b82f6;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      width: 28px;
+      height: 28px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.11s;
+    }
+    .step-btn:hover {
+      background: #2563eb;
+      color: #fff;
+    }
+    .step-control input[type="number"] {
+      width: 100%;
+      background: #181b26;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 5px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    /* CROP / LEIKKAUS PANEELI */
+    #crop-panel {
+      display: none;
+      margin-top: 10px;
+      background: #161924;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+    }
+    #crop-panel input[type="range"] {
+      width: 100%;
+      accent-color: #f59e0b;
+      cursor: pointer;
+    }
+
+    /* OSALISTAUS */
+    #parts-list { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
+    #parts-list li {
+      padding: 8px 10px; background: #161924; margin-bottom: 4px; border-radius: 4px;
+      font-size: 12px; display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer; border: 1px solid transparent;
+    }
+    #parts-list li:hover { background: #202536; }
+    #parts-list li.selected { border-color: #f59e0b; background: #1e2638; font-weight: 600; color: #f59e0b; }
+
+    /* MODAALI UUDEN OSAN LISÄYKSEN */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-card {
+      background: #11131a; border: 1px solid #334155; border-radius: 8px;
+      padding: 20px; width: 330px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); color: #fff;
+    }
+    .modal-card h3 { margin-top: 0; margin-bottom: 15px; font-size: 15px; color: #f59e0b; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 15px; }
+
+    #file-input { display: none; }
+  </style>
+
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- AUTOMALLIEN JS-TIEDOSTOT JUURESTA -->
+  <script src="porcher.js"></script>
+  <script src="lotuser.js"></script>
+  <script src="pontiacer.js"></script>
+  <script src="lambo.js"></script>
+  <script src="ferrarer.js"></script>
+</head>
+<body>
+
+  <!-- YLÄPALKKI -->
+  <div id="toolbar">
+    <div class="brand">3D CAR STUDIO EDITOR</div>
+    <div class="btn-group">
+      <!-- AUTOMALLIN VALINTA PUDOTUSVALIKKO -->
+      <select id="model-select" class="model-select" onchange="loadSelectedModel(this.value)">
+        <option value="pontiacer">Pontiacer</option>
+        <option value="porcher">Porcher</option>
+        <option value="lotuser">Lotuser</option>
+        <option value="lambo">Lambo</option>
+        <option value="ferrarer">Ferrarer</option>
+      </select>
+
+      <span style="border-right: 1px solid #334155; height: 20px; margin: 0 4px;"></span>
+      
+      <!-- UNDO / REDO NAPIT -->
+      <button id="btn-undo" class="secondary" onclick="undo()" title="Kumoa (Ctrl+Z)" disabled>↩ Kumoa</button>
+      <button id="btn-redo" class="secondary" onclick="redo()" title="Tee uudelleen (Ctrl+Y)" disabled>↪ Redo</button>
+
+      <span style="border-right: 1px solid #334155; height: 20px; margin: 0 4px;"></span>
+      <button id="btn-mode-3d" class="secondary" onclick="setMode('3d')">3D Katselutila</button>
+      <button id="btn-mode-edit" class="active" onclick="setMode('edit')">Editointitila</button>
+      <span style="border-right: 1px solid #334155; height: 20px; margin: 0 4px;"></span>
+      <button onclick="openAddPartModal()">+ Lisää Osa</button>
+      <button class="secondary" onclick="exportJSModel()">Tallenna JS</button>
+      <label class="btn-upload secondary">
+        Lataa JS <input type="file" id="file-input" accept=".js,.html" onchange="importJSModel(event)">
+      </label>
+    </div>
+  </div>
+
+  <!-- NÄKYMÄKONTTI (MULTI-VIEWPORT) -->
+  <div id="main-container">
+    <!-- 3D NÄKYMÄ -->
+    <div class="viewport" id="vp-3d">
+      <div class="viewport-label">
+        <span class="vp-title">3D PERSPEKTIIVI</span>
+        <div class="vp-controls">
+          <span class="zoom-box">🔍 Zoom: <input type="range" id="zoom-slider-3d" min="0.3" max="3.0" step="0.1" value="1.0" oninput="updateCameraZoom('3d', this.value)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PÄÄLTÄ / ALTA NÄKYMÄ -->
+    <div class="viewport" id="vp-top">
+      <div class="viewport-label">
+        <span class="vp-title" id="title-top">PÄÄLTÄ (TOP)</span>
+        <div class="vp-controls">
+          <button class="vp-btn" onclick="toggleCamDir('top')">🔄 Vaihda (Päältä / Alta)</button>
+          <span class="zoom-box">🔍 Zoom: <input type="range" id="zoom-slider-top" min="0.3" max="3.0" step="0.1" value="1.0" oninput="updateCameraZoom('top', this.value)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDESTÄ / TAKAA NÄKYMÄ -->
+    <div class="viewport" id="vp-front">
+      <div class="viewport-label">
+        <span class="vp-title" id="title-front">EDESTÄ (FRONT)</span>
+        <div class="vp-controls">
+          <button class="vp-btn" onclick="toggleCamDir('front')">🔄 Vaihda (Edestä / Takaa)</button>
+          <span class="zoom-box">🔍 Zoom: <input type="range" id="zoom-slider-front" min="0.3" max="3.0" step="0.1" value="1.0" oninput="updateCameraZoom('front', this.value)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIVULTA (OIKEA / VASEN) NÄKYMÄ -->
+    <div class="viewport" id="vp-side">
+      <div class="viewport-label">
+        <span class="vp-title" id="title-side">SIVULTA (R-SIDE)</span>
+        <div class="vp-controls">
+          <button class="vp-btn" onclick="toggleCamDir('side')">🔄 Vaihda (Oikea / Vasen)</button>
+          <span class="zoom-box">🔍 Zoom: <input type="range" id="zoom-slider-side" min="0.3" max="3.0" step="0.1" value="1.0" oninput="updateCameraZoom('side', this.value)"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDITOINTISIVUPANEELI -->
+  <div id="sidebar">
+    <!-- ILMOITUSTEKSIN BANNERI -->
+    <div id="toast-message">Malli ladattu onnistuneesti</div>
+
+    <!-- KAMERAT & ZOOM (SIVUPANEELIN OHJAIMET) -->
+    <div class="panel-section">
+      <div class="panel-title">Kamerat & Zoom</div>
+      <div class="control-group">
+        <label>Päältä / Alta Kamera</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="secondary" style="font-size:11px; flex:1;" onclick="toggleCamDir('top')">Vaihda (Päältä/Alta)</button>
+          <span style="font-size:11px;">Zoom:</span>
+          <input type="range" id="sb-zoom-top" min="0.3" max="3.0" step="0.1" value="1.0" style="width:70px;" oninput="updateCameraZoom('top', this.value)">
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Edestä / Takaa Kamera</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="secondary" style="font-size:11px; flex:1;" onclick="toggleCamDir('front')">Vaihda (Edestä/Takaa)</button>
+          <span style="font-size:11px;">Zoom:</span>
+          <input type="range" id="sb-zoom-front" min="0.3" max="3.0" step="0.1" value="1.0" style="width:70px;" oninput="updateCameraZoom('front', this.value)">
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Sivukamera (Oikea / Vasen)</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="secondary" style="font-size:11px; flex:1;" onclick="toggleCamDir('side')">Vaihda (R/L Side)</button>
+          <span style="font-size:11px;">Zoom:</span>
+          <input type="range" id="sb-zoom-side" min="0.3" max="3.0" step="0.1" value="1.0" style="width:70px;" oninput="updateCameraZoom('side', this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- YMPÄRISTÖN ASETUKSET -->
+    <div class="panel-section">
+      <div class="panel-title">Ympäristö & Tausta</div>
+      <div class="control-group">
+        <label>Taustaväri</label>
+        <div class="color-picker-row">
+          <input type="color" id="env-color" value="#ffffff" onchange="updateEnvColor(this.value)">
+          <span style="font-size: 11px; color: #94a3b8;">Tausta (Default valkoinen)</span>
+        </div>
+      </div>
+      <!-- LATTIAN VÄRIVALITSIN -->
+      <div class="control-group">
+        <label>Lattian väri</label>
+        <div class="color-picker-row">
+          <input type="color" id="floor-color" value="#ffffff" onchange="updateFloorColor(this.value)">
+          <span style="font-size: 11px; color: #94a3b8;">Lattia (Default valkoinen)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- VALITTU OSA -->
+    <div class="panel-section">
+      <div class="panel-title">Valittu Osa</div>
+      <div class="control-group">
+        <label>Nimi</label>
+        <input type="text" id="prop-name" oninput="updateSelectedProp('name', this.value)">
+      </div>
+      <div class="control-group">
+        <label>Väri</label>
+        <div class="color-picker-row">
+          <input type="color" id="prop-color" onchange="updateSelectedProp('color', this.value)">
+          <button class="secondary" style="font-size: 11px;" onclick="applyColorToSame()">Kaikille samanvärisille</button>
+        </div>
+      </div>
+
+      <!-- CROP / LEIKKAUS -NAPPI JA SÄÄTIMET -->
+      <button class="secondary" style="width:100%; margin-top:6px; font-weight:700;" onclick="toggleCropPanel()">✂️ Crop / Leikkaa Osa</button>
+      
+      <div id="crop-panel">
+        <div class="panel-title" style="margin-bottom:8px; font-size:10px; color:#f59e0b;">Osan Leikkauksen Säätimet</div>
+        <div class="step-control-row">
+          <div class="coord-row">
+            <label>X Min</label>
+            <input type="range" id="crop-xmin" step="0.01" oninput="updateCropPlanes()">
+          </div>
+          <div class="coord-row">
+            <label>X Max</label>
+            <input type="range" id="crop-xmax" step="0.01" oninput="updateCropPlanes()">
+          </div>
+          <div class="coord-row">
+            <label>Y Min</label>
+            <input type="range" id="crop-ymin" step="0.01" oninput="updateCropPlanes()">
+          </div>
+          <div class="coord-row">
+            <label>Y Max</label>
+            <input type="range" id="crop-ymax" step="0.01" oninput="updateCropPlanes()">
+          </div>
+          <div class="coord-row">
+            <label>Z Min</label>
+            <input type="range" id="crop-zmin" step="0.01" oninput="updateCropPlanes()">
+          </div>
+          <div class="coord-row">
+            <label>Z Max</label>
+            <input type="range" id="crop-zmax" step="0.01" oninput="updateCropPlanes()">
+          </div>
+          <button class="secondary" style="font-size:10px; padding:4px; margin-top:6px;" onclick="resetCropPlanes()">Nollaa leikkaukset</button>
+        </div>
+      </div>
+
+      <button class="secondary" style="width:100%; margin-top:10px; background:#7f1d1d; color:#fca5a5; border-color:#991b1b;" onclick="deleteSelectedPart()">Poista Osa</button>
+    </div>
+
+    <!-- SIJAINTI NAPIT + INPUTIT -->
+    <div class="panel-section">
+      <div class="panel-title">Sijainti (Position)</div>
+      <div class="step-control-row">
+        <div class="coord-row">
+          <label>X</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('pos', 0, -0.05)">-</button>
+            <input type="number" step="0.05" id="pos-x" oninput="updateNumericProp('pos', 0, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('pos', 0, 0.05)">+</button>
+          </div>
+        </div>
+        <div class="coord-row">
+          <label>Y</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('pos', 1, -0.05)">-</button>
+            <input type="number" step="0.05" id="pos-y" oninput="updateNumericProp('pos', 1, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('pos', 1, 0.05)">+</button>
+          </div>
+        </div>
+        <div class="coord-row">
+          <label>Z</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('pos', 2, -0.05)">-</button>
+            <input type="number" step="0.05" id="pos-z" oninput="updateNumericProp('pos', 2, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('pos', 2, 0.05)">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KALTEVUUS NAPIT + INPUTIT -->
+    <div class="panel-section">
+      <div class="panel-title">Kaltevuus / Kulma (Rotation Deg)</div>
+      <div class="step-control-row">
+        <div class="coord-row">
+          <label>X</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('rotDeg', 0, -5)">-</button>
+            <input type="number" step="5" id="rot-x" oninput="updateNumericProp('rotDeg', 0, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('rotDeg', 0, 5)">+</button>
+          </div>
+        </div>
+        <div class="coord-row">
+          <label>Y</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('rotDeg', 1, -5)">-</button>
+            <input type="number" step="5" id="rot-y" oninput="updateNumericProp('rotDeg', 1, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('rotDeg', 1, 5)">+</button>
+          </div>
+        </div>
+        <div class="coord-row">
+          <label>Z</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('rotDeg', 2, -5)">-</button>
+            <input type="number" step="5" id="rot-z" oninput="updateNumericProp('rotDeg', 2, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('rotDeg', 2, 5)">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MITAT / KOKO NAPIT + INPUTIT -->
+    <div class="panel-section">
+      <div class="panel-title">Mitat / Koko (Scale)</div>
+      <div class="step-control-row">
+        <div class="coord-row">
+          <label>W</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('size', 0, -0.05)">-</button>
+            <input type="number" step="0.05" min="0.01" id="size-x" oninput="updateNumericProp('size', 0, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('size', 0, 0.05)">+</button>
+          </div>
+        </div>
+        <div class="coord-row">
+          <label>H</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('size', 1, -0.05)">-</button>
+            <input type="number" step="0.05" min="0.01" id="size-y" oninput="updateNumericProp('size', 1, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('size', 1, 0.05)">+</button>
+          </div>
+        </div>
+        <div class="coord-row">
+          <label>D</label>
+          <div class="step-control">
+            <button class="step-btn" onclick="stepNumericProp('size', 2, -0.05)">-</button>
+            <input type="number" step="0.05" min="0.01" id="size-z" oninput="updateNumericProp('size', 2, this.value)">
+            <button class="step-btn" onclick="stepNumericProp('size', 2, 0.05)">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section" style="flex:1;">
+      <div class="panel-title">Mallin Osat (<span id="part-count">0</span>)</div>
+      <ul id="parts-list"></ul>
+    </div>
+  </div>
+
+  <!-- MODAALI IKKUNA UUDEN OSAN LISÄÄMISEEN -->
+  <div id="add-part-modal" class="modal-overlay">
+    <div class="modal-card">
+      <h3>Lisää uusi osa</h3>
+      <div class="control-group">
+        <label>Osan nimi</label>
+        <input type="text" id="new-part-name" value="Uusi Koriosa">
+      </div>
+      <div class="control-group">
+        <label>Muoto (Tyyppi)</label>
+        <select id="new-part-type">
+          <option value="box">Kuutio / Laatikko (Box)</option>
+          <option value="sphere">Pallo (Sphere)</option>
+          <option value="ellipse">Ellipsi / Ellipsoidi (Ellipsoid)</option>
+          <option value="cylinder">Lieriö (Cylinder)</option>
+          <option value="cone">Kolmio / Kartio (Cone)</option>
+          <option value="prism">Kolmioprisma (Prism)</option>
+          <option value="tetrahedron">Tetraedri (Tetrahedron)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary" onclick="closeAddPartModal()">Peruuta</button>
+        <button onclick="confirmAddPart()">Lisää Osa</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // 1. GLOBAALIT MUUTTUJAT & TILA
+    // =========================================================
+    let currentMode = 'edit';
+    let currentModelKey = 'pontiacer';
+    let carGroup = null;
+    let editableMeshes = [];
+    let selectedMesh = null;
+    let boxHelper = null;
+
+    let renderer, scene;
+    let cam3D, camTop, camFront, camSide;
+    let orbit3D;
+    let floorMat;
+
+    let camDirs = {
+      top: 'top',
+      front: 'front',
+      side: 'right'
+    };
+
+    // UNDO & REDO HISTORIA
+    let undoStack = [];
+    let redoStack = [];
+    let isHistoryAction = false;
+
+    function initStudio() {
+      const container = document.getElementById('main-container');
+
+      // DEFAULIT TAUSTA JA SUMU VALKOISET (#ffffff)
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff);
+      scene.fog = new THREE.FogExp2(0xffffff, 0.02);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+
+      // SALLITAAN LEIKKAUSTASOT (CLIPPING PLANES)
+      renderer.localClippingEnabled = true;
+
+      container.appendChild(renderer.domElement);
+
+      // --- KAMERAT ---
+      cam3D = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+      cam3D.position.set(5.2, 1.9, 5.5);
+
+      const orthoSize = 2.5;
+      camTop = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 50);
+      camTop.up.set(0, 0, -1);
+      camTop.position.set(0, 10, 0);
+      camTop.lookAt(0, 0.4, 0);
+
+      camFront = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 50);
+      camFront.position.set(0, 0.4, 10);
+      camFront.lookAt(0, 0.4, 0);
+
+      camSide = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 50);
+      camSide.position.set(10, 0.4, 0);
+      camSide.lookAt(0, 0.4, 0);
+
+      // --- OHJAIMET ---
+      orbit3D = new THREE.OrbitControls(cam3D, renderer.domElement);
+      orbit3D.enableDamping = true;
+      orbit3D.dampingFactor = 0.05;
+      orbit3D.target.set(0, 0.40, 0);
+      orbit3D.maxPolarAngle = Math.PI / 2 - 0.01;
+
+      // --- LATTIA & VALAISTUS (DEFAULT VALKOINEN LATTIA) ---
+      const floorGeo = new THREE.PlaneGeometry(80, 80);
+      floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.1 });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const gridFloor = new THREE.GridHelper(80, 80, 0x2563eb, 0xcbd5e1);
+      gridFloor.position.y = -0.005;
+      scene.add(gridFloor);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+
+      const mainLight = new THREE.DirectionalLight(0xffffff, 1.1);
+      mainLight.position.set(6, 9, 5);
+      mainLight.castShadow = true;
+      mainLight.shadow.mapSize.width = 2048;
+      mainLight.shadow.mapSize.height = 2048;
+      mainLight.shadow.bias = -0.00008;
+      scene.add(mainLight);
+
+      const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
+      rimLight.position.set(-6, 4, -6);
+      scene.add(rimLight);
+
+      const frontHighlight = new THREE.DirectionalLight(0xf59e0b, 0.3);
+      frontHighlight.position.set(0, 2, 8);
+      scene.add(frontHighlight);
+
+      boxHelper = new THREE.BoxHelper(new THREE.Object3D(), 0x3b82f6);
+      boxHelper.visible = false;
+      scene.add(boxHelper);
+
+      renderer.domElement.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('resize', onWindowResize);
+
+      // NÄPPÄIMISTÖOIKOTI (Ctrl+Z / Ctrl+Y)
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+          if (e.shiftKey) redo();
+          else undo();
+          e.preventDefault();
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+          redo();
+          e.preventDefault();
+        }
+      });
+
+      syncModelDropdown();
+      loadSelectedModel('pontiacer');
+      onWindowResize();
+      
+      animate();
+    }
+
+    // =========================================================
+    // UNDO & REDO HISTORIAN HALLINTA (MUKANA CROP-ARVOT)
+    // =========================================================
+    function captureState() {
+      if (!carGroup) return "[]";
+      const stateList = [];
+      carGroup.traverse(child => {
+        if (child.isMesh) {
+          stateList.push({
+            name: child.name,
+            pos: child.position.toArray(),
+            rot: [child.rotation.x, child.rotation.y, child.rotation.z],
+            scale: child.scale.toArray(),
+            color: child.material && child.material.color ? '#' + child.material.color.getHexString() : '#ffffff',
+            cropValues: child.userData.cropValues ? { ...child.userData.cropValues } : null
+          });
+        }
+      });
+      return JSON.stringify(stateList);
+    }
+
+    function recordState() {
+      if (isHistoryAction) return;
+      const state = captureState();
+      if (undoStack.length > 0 && undoStack[undoStack.length - 1] === state) return;
+
+      undoStack.push(state);
+      if (undoStack.length > 50) undoStack.shift();
+      redoStack = [];
+      updateUndoRedoButtons();
+    }
+
+    function applyState(stateStr) {
+      if (!stateStr) return;
+      try {
+        const stateList = JSON.parse(stateStr);
+        stateList.forEach((data, idx) => {
+          if (editableMeshes[idx]) {
+            const m = editableMeshes[idx];
+            m.name = data.name;
+            m.position.fromArray(data.pos);
+            m.rotation.set(data.rot[0], data.rot[1], data.rot[2]);
+            m.scale.fromArray(data.scale);
+            if (m.material && m.material.color) {
+              m.material.color.set(data.color);
+            }
+
+            // Palautetaan tai nollataan leikkaukset
+            if (data.cropValues) {
+              m.userData.cropValues = { ...data.cropValues };
+              refreshMeshClipping(m);
+            } else {
+              m.userData.cropValues = null;
+              if (m.material) {
+                m.material.clippingPlanes = [];
+                m.material.needsUpdate = true;
+              }
+            }
+          }
+        });
+        updateUIInspector();
+        if (selectedMesh) {
+          boxHelper.setFromObject(selectedMesh);
+          initCropSlidersForMesh(selectedMesh);
+        }
+      } catch (err) {
+        console.error("Virhe tilan palautuksessa:", err);
+      }
+    }
+
+    function undo() {
+      if (undoStack.length === 0) return;
+      isHistoryAction = true;
+
+      redoStack.push(captureState());
+      const previousState = undoStack.pop();
+      applyState(previousState);
+
+      isHistoryAction = false;
+      updateUndoRedoButtons();
+      showNotification("Kumottu (Undo)");
+    }
+
+    function redo() {
+      if (redoStack.length === 0) return;
+      isHistoryAction = true;
+
+      undoStack.push(captureState());
+      const nextState = redoStack.pop();
+      applyState(nextState);
+
+      isHistoryAction = false;
+      updateUndoRedoButtons();
+      showNotification("Tehty uudelleen (Redo)");
+    }
+
+    function updateUndoRedoButtons() {
+      const btnUndo = document.getElementById('btn-undo');
+      const btnRedo = document.getElementById('btn-redo');
+      if (btnUndo) btnUndo.disabled = (undoStack.length === 0);
+      if (btnRedo) btnRedo.disabled = (redoStack.length === 0);
+    }
+
+    // ILMOITUSBANNERI
+    function showNotification(msg) {
+      const toast = document.getElementById('toast-message');
+      if (!toast) return;
+      toast.innerText = msg || "Malli ladattu onnistuneesti";
+      toast.style.display = 'block';
+
+      if (window.toastTimeout) clearTimeout(window.toastTimeout);
+      window.toastTimeout = setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3500);
+    }
+
+    function updateEnvColor(hexColor) {
+      scene.background = new THREE.Color(hexColor);
+      scene.fog.color = new THREE.Color(hexColor);
+    }
+
+    function updateFloorColor(hexColor) {
+      if (floorMat) {
+        floorMat.color.set(hexColor);
+      }
+    }
+
+    // =========================================================
+    // 2. KAMEROIDEN SUUNTA & ZOOM OHJAUS
+    // =========================================================
+    function toggleCamDir(viewName) {
+      if (viewName === 'top') {
+        camDirs.top = (camDirs.top === 'top') ? 'bottom' : 'top';
+        const isTop = (camDirs.top === 'top');
+        camTop.up.set(0, 0, isTop ? -1 : 1);
+        camTop.position.set(0, isTop ? 10 : -10, 0);
+        camTop.lookAt(0, 0.4, 0);
+        camTop.updateProjectionMatrix();
+
+        const titleText = isTop ? 'PÄÄLTÄ (TOP)' : 'ALTA (BOTTOM)';
+        document.getElementById('title-top').innerText = titleText;
+
+      } else if (viewName === 'front') {
+        camDirs.front = (camDirs.front === 'front') ? 'back' : 'front';
+        const isFront = (camDirs.front === 'front');
+        camFront.position.set(0, 0.4, isFront ? 10 : -10);
+        camFront.lookAt(0, 0.4, 0);
+        camFront.updateProjectionMatrix();
+
+        const titleText = isFront ? 'EDESTÄ (FRONT)' : 'TAKAA (BACK)';
+        document.getElementById('title-front').innerText = titleText;
+
+      } else if (viewName === 'side') {
+        camDirs.side = (camDirs.side === 'right') ? 'left' : 'right';
+        const isRight = (camDirs.side === 'right');
+        camSide.position.set(isRight ? 10 : -10, 0.4, 0);
+        camSide.lookAt(0, 0.4, 0);
+        camSide.updateProjectionMatrix();
+
+        const titleText = isRight ? 'SIVULTA (R-SIDE)' : 'SIVULTA (L-SIDE)';
+        document.getElementById('title-side').innerText = titleText;
+      }
+    }
+
+    function updateCameraZoom(camType, valueStr) {
+      const zoom = parseFloat(valueStr);
+      if (isNaN(zoom)) return;
+
+      if (camType === '3d') {
+        cam3D.zoom = zoom;
+        cam3D.updateProjectionMatrix();
+        document.getElementById('zoom-slider-3d').value = zoom;
+      } else if (camType === 'top') {
+        camTop.zoom = zoom;
+        camTop.updateProjectionMatrix();
+        document.getElementById('zoom-slider-top').value = zoom;
+        document.getElementById('sb-zoom-top').value = zoom;
+      } else if (camType === 'front') {
+        camFront.zoom = zoom;
+        camFront.updateProjectionMatrix();
+        document.getElementById('zoom-slider-front').value = zoom;
+        document.getElementById('sb-zoom-front').value = zoom;
+      } else if (camType === 'side') {
+        camSide.zoom = zoom;
+        camSide.updateProjectionMatrix();
+        document.getElementById('zoom-slider-side').value = zoom;
+        document.getElementById('sb-zoom-side').value = zoom;
+      }
+    }
+
+    // =========================================================
+    // 3. CROP / LEIKKAUS SÄÄTIMET (KORJATTU PAIKALLISILLA TASOILLA)
+    // =========================================================
+    function toggleCropPanel() {
+      const panel = document.getElementById('crop-panel');
+      if (!panel) return;
+      const isVisible = (panel.style.display === 'block');
+      panel.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible && selectedMesh) {
+        initCropSlidersForMesh(selectedMesh);
+      }
+    }
+
+    function initCropSlidersForMesh(mesh) {
+      if (!mesh) return;
+
+      mesh.geometry.computeBoundingBox();
+      const bbox = mesh.geometry.boundingBox;
+      if (!bbox) return;
+
+      const dx = Math.max(0.1, bbox.max.x - bbox.min.x);
+      const dy = Math.max(0.1, bbox.max.y - bbox.min.y);
+      const dz = Math.max(0.1, bbox.max.z - bbox.min.z);
+
+      const padX = dx * 0.5;
+      const padY = dy * 0.5;
+      const padZ = dz * 0.5;
+
+      const c = mesh.userData.cropValues;
+
+      const setRange = (id, minVal, maxVal, curVal) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.min = minVal.toFixed(3);
+          el.max = maxVal.toFixed(3);
+          el.value = (curVal !== undefined && curVal !== null) ? curVal.toFixed(3) : curVal;
+        }
+      };
+
+      setRange('crop-xmin', bbox.min.x - padX, bbox.max.x, c ? c.xMin : bbox.min.x - 0.01);
+      setRange('crop-xmax', bbox.min.x, bbox.max.x + padX, c ? c.xMax : bbox.max.x + 0.01);
+
+      setRange('crop-ymin', bbox.min.y - padY, bbox.max.y, c ? c.yMin : bbox.min.y - 0.01);
+      setRange('crop-ymax', bbox.min.y, bbox.max.y + padY, c ? c.yMax : bbox.max.y + 0.01);
+
+      setRange('crop-zmin', bbox.min.z - padZ, bbox.max.z, c ? c.zMin : bbox.min.z - 0.01);
+      setRange('crop-zmax', bbox.min.z, bbox.max.z + padZ, c ? c.zMax : bbox.max.z + 0.01);
+    }
+
+    function refreshMeshClipping(mesh) {
+      if (!mesh || !mesh.userData.cropValues) return;
+      const c = mesh.userData.cropValues;
+
+      if (!mesh.userData.materialCloned && mesh.material) {
+        mesh.material = mesh.material.clone();
+        mesh.userData.materialCloned = true;
+      }
+
+      mesh.updateMatrixWorld(true);
+
+      // Muunnetaan osan paikalliset leikkaustasot maailmankoordinaatteihin (applyMatrix4)
+      const pXMin = new THREE.Plane(new THREE.Vector3(1, 0, 0), -c.xMin).applyMatrix4(mesh.matrixWorld);
+      const pXMax = new THREE.Plane(new THREE.Vector3(-1, 0, 0), c.xMax).applyMatrix4(mesh.matrixWorld);
+      const pYMin = new THREE.Plane(new THREE.Vector3(0, 1, 0), -c.yMin).applyMatrix4(mesh.matrixWorld);
+      const pYMax = new THREE.Plane(new THREE.Vector3(0, -1, 0), c.yMax).applyMatrix4(mesh.matrixWorld);
+      const pZMin = new THREE.Plane(new THREE.Vector3(0, 0, 1), -c.zMin).applyMatrix4(mesh.matrixWorld);
+      const pZMax = new THREE.Plane(new THREE.Vector3(0, 0, -1), c.zMax).applyMatrix4(mesh.matrixWorld);
+
+      mesh.material.clippingPlanes = [pXMin, pXMax, pYMin, pYMax, pZMin, pZMax];
+      mesh.material.clipShadows = true;
+      mesh.material.needsUpdate = true;
+    }
+
+    function updateCropPlanes() {
+      if (!selectedMesh) return;
+      recordState();
+
+      const getVal = (id) => parseFloat(document.getElementById(id).value);
+
+      selectedMesh.userData.cropValues = {
+        xMin: getVal('crop-xmin'),
+        xMax: getVal('crop-xmax'),
+        yMin: getVal('crop-ymin'),
+        yMax: getVal('crop-ymax'),
+        zMin: getVal('crop-zmin'),
+        zMax: getVal('crop-zmax')
+      };
+
+      refreshMeshClipping(selectedMesh);
+      boxHelper.update();
+    }
+
+    function resetCropPlanes() {
+      if (!selectedMesh) return;
+      recordState();
+
+      selectedMesh.userData.cropValues = null;
+      if (selectedMesh.material) {
+        selectedMesh.material.clippingPlanes = [];
+        selectedMesh.material.needsUpdate = true;
+      }
+      initCropSlidersForMesh(selectedMesh);
+      boxHelper.update();
+      showNotification("Osan leikkaukset nollattu");
+    }
+
+    // =========================================================
+    // 4. AUTOMALLIEN DYYNAMINEN LATAUS & VAIHTO
+    // =========================================================
+    function syncModelDropdown() {
+      const select = document.getElementById('model-select');
+      if (!select) return;
+
+      const defaultKeys = ['pontiacer', 'porcher', 'lotuser', 'lambo', 'ferrarer'];
+      const availableKeys = window.CAR_MODELS ? Object.keys(window.CAR_MODELS) : [];
+      const allKeys = Array.from(new Set([...defaultKeys, ...availableKeys]));
+
+      select.innerHTML = '';
+      allKeys.forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+        if (key === currentModelKey) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function loadSelectedModel(modelKey) {
+      recordState();
+      currentModelKey = modelKey;
+
+      if (carGroup) scene.remove(carGroup);
+      
+      if (window.CAR_MODELS && typeof window.CAR_MODELS[modelKey] === 'function') {
+        carGroup = window.CAR_MODELS[modelKey]('#12151e', '#0f1014');
+      } else {
+        carGroup = new THREE.Group();
+      }
+
+      scene.add(carGroup);
+      rebuildPartsIndex();
+      showNotification("Malli ladattu onnistuneesti");
+    }
+
+    function rebuildPartsIndex() {
+      editableMeshes = [];
+      let counter = 1;
+
+      if (carGroup) {
+        carGroup.traverse((child) => {
+          if (child.isMesh) {
+            if (!child.name) child.name = 'Osa ' + counter++;
+            editableMeshes.push(child);
+          }
+        });
+      }
+
+      updateUIList();
+      if (editableMeshes.length > 0) {
+        selectMesh(editableMeshes[0]);
+      } else {
+        selectMesh(null);
+      }
+    }
+
+    // =========================================================
+    // 5. VALINTA HIIRI-KLIKKAUKSESSA & OSALISTASTA
+    // =========================================================
+    function onPointerDown(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const w = rect.width;
+      const h = rect.height;
+
+      let activeCam = cam3D;
+      let mouse = new THREE.Vector2();
+
+      if (currentMode === '3d') {
+        mouse.x = (x / w) * 2 - 1;
+        mouse.y = -(y / h) * 2 + 1;
+      } else {
+        const w2 = w / 2;
+        const h2 = h / 2;
+        let quadX = (x >= w2) ? x - w2 : x;
+        let quadY = (y >= h2) ? y - h2 : y;
+
+        if (x < w2 && y < h2) activeCam = cam3D;
+        else if (x >= w2 && y < h2) activeCam = camTop;
+        else if (x < w2 && y >= h2) activeCam = camFront;
+        else activeCam = camSide;
+
+        mouse.x = (quadX / w2) * 2 - 1;
+        mouse.y = -(quadY / h2) * 2 + 1;
+      }
+
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, activeCam);
+      const intersects = raycaster.intersectObjects(editableMeshes, false);
+
+      if (intersects.length > 0) {
+        selectMesh(intersects[0].object);
+      }
+    }
+
+    function selectMesh(mesh) {
+      selectedMesh = mesh;
+      if (selectedMesh) {
+        boxHelper.setFromObject(selectedMesh);
+        boxHelper.visible = true;
+        initCropSlidersForMesh(selectedMesh);
+      } else {
+        boxHelper.visible = false;
+      }
+      updateUIList();
+      updateUIInspector();
+    }
+
+    // =========================================================
+    // 6. UI PÄIVITYS & NAPPI-MUOKKAUS (NAPEILLA & INPUTEILLA)
+    // =========================================================
+    function setInputValueSafely(id, val) {
+      const el = document.getElementById(id);
+      if (el && document.activeElement !== el) {
+        el.value = val;
+      }
+    }
+
+    function updateUIList() {
+      const list = document.getElementById('parts-list');
+      document.getElementById('part-count').innerText = editableMeshes.length;
+      list.innerHTML = '';
+
+      editableMeshes.forEach(mesh => {
+        const li = document.createElement('li');
+        li.className = (mesh === selectedMesh) ? 'selected' : '';
+        li.onclick = () => selectMesh(mesh);
+        li.innerText = mesh.name;
+        list.appendChild(li);
+      });
+    }
+
+    function updateUIInspector() {
+      if (!selectedMesh) return;
+
+      setInputValueSafely('prop-name', selectedMesh.name);
+
+      let colHex = '#ffffff';
+      if (selectedMesh.material && selectedMesh.material.color) {
+        colHex = '#' + selectedMesh.material.color.getHexString();
+      }
+      setInputValueSafely('prop-color', colHex);
+
+      // Position
+      setInputValueSafely('pos-x', selectedMesh.position.x.toFixed(2));
+      setInputValueSafely('pos-y', selectedMesh.position.y.toFixed(2));
+      setInputValueSafely('pos-z', selectedMesh.position.z.toFixed(2));
+
+      // Rotation Deg
+      setInputValueSafely('rot-x', (selectedMesh.rotation.x * 180 / Math.PI).toFixed(1));
+      setInputValueSafely('rot-y', (selectedMesh.rotation.y * 180 / Math.PI).toFixed(1));
+      setInputValueSafely('rot-z', (selectedMesh.rotation.z * 180 / Math.PI).toFixed(1));
+
+      // Scale / Size
+      setInputValueSafely('size-x', selectedMesh.scale.x.toFixed(2));
+      setInputValueSafely('size-y', selectedMesh.scale.y.toFixed(2));
+      setInputValueSafely('size-z', selectedMesh.scale.z.toFixed(2));
+
+      boxHelper.update();
+    }
+
+    function stepNumericProp(type, axisIndex, delta) {
+      if (!selectedMesh) return;
+      recordState();
+
+      let currentVal = 0;
+      if (type === 'pos') {
+        currentVal = (axisIndex === 0) ? selectedMesh.position.x : (axisIndex === 1 ? selectedMesh.position.y : selectedMesh.position.z);
+      } else if (type === 'rotDeg') {
+        const rotArr = [selectedMesh.rotation.x, selectedMesh.rotation.y, selectedMesh.rotation.z];
+        currentVal = rotArr[axisIndex] * 180 / Math.PI;
+      } else if (type === 'size') {
+        currentVal = (axisIndex === 0) ? selectedMesh.scale.x : (axisIndex === 1 ? selectedMesh.scale.y : selectedMesh.scale.z);
+      }
+
+      let newVal = currentVal + delta;
+      if (type === 'rotDeg') newVal = Math.round(newVal);
+      else newVal = parseFloat(newVal.toFixed(2));
+
+      updateNumericProp(type, axisIndex, newVal);
+      updateUIInspector();
+    }
+
+    function updateNumericProp(type, axisIndex, valueStr) {
+      if (!selectedMesh) return;
+      recordState();
+      const val = parseFloat(valueStr);
+      if (isNaN(val)) return;
+
+      if (type === 'pos') {
+        if (axisIndex === 0) selectedMesh.position.x = val;
+        if (axisIndex === 1) selectedMesh.position.y = val;
+        if (axisIndex === 2) selectedMesh.position.z = val;
+      } else if (type === 'rotDeg') {
+        const rad = (val * Math.PI) / 180;
+        if (axisIndex === 0) selectedMesh.rotation.x = rad;
+        if (axisIndex === 1) selectedMesh.rotation.y = rad;
+        if (axisIndex === 2) selectedMesh.rotation.z = rad;
+      } else if (type === 'size') {
+        const safeScale = Math.max(0.01, val);
+        if (axisIndex === 0) selectedMesh.scale.x = safeScale;
+        if (axisIndex === 1) selectedMesh.scale.y = safeScale;
+        if (axisIndex === 2) selectedMesh.scale.z = safeScale;
+      }
+
+      refreshMeshClipping(selectedMesh);
+      boxHelper.update();
+    }
+
+    function updateSelectedProp(prop, value) {
+      if (!selectedMesh) return;
+      recordState();
+
+      if (prop === 'name') {
+        selectedMesh.name = value;
+        updateUIList();
+      }
+      if (prop === 'color') {
+        if (selectedMesh.material && selectedMesh.material.color) {
+          selectedMesh.material.color.set(value);
+        }
+      }
+    }
+
+    function applyColorToSame() {
+      if (!selectedMesh || !selectedMesh.material || !selectedMesh.material.color) return;
+      recordState();
+      const targetColor = selectedMesh.material.color.clone();
+
+      editableMeshes.forEach(m => {
+        if (m.material && m.material.color) {
+          m.material.color.copy(targetColor);
+        }
+      });
+    }
+
+    // =========================================================
+    // 7. MODAALI OSAN LISÄYKSELLE
+    // =========================================================
+    function openAddPartModal() {
+      document.getElementById('add-part-modal').style.display = 'flex';
+    }
+
+    function closeAddPartModal() {
+      document.getElementById('add-part-modal').style.display = 'none';
+    }
+
+    function confirmAddPart() {
+      recordState();
+      const name = document.getElementById('new-part-name').value || "Uusi Osa";
+      const type = document.getElementById('new-part-type').value || "box";
+
+      let geo;
+      if (type === 'box') geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+      else if (type === 'sphere') geo = new THREE.SphereGeometry(0.2, 24, 24);
+      else if (type === 'cylinder') geo = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 24);
+      else if (type === 'cone') geo = new THREE.ConeGeometry(0.15, 0.3, 24);
+      else if (type === 'prism') geo = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 3);
+      else if (type === 'tetrahedron') geo = new THREE.TetrahedronGeometry(0.2);
+      else geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+
+      const mat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.3, metalness: 0.4 });
+      const newMesh = new THREE.Mesh(geo, mat);
+      newMesh.name = name;
+      newMesh.position.set(0, 0.5, 0);
+      newMesh.castShadow = true;
+
+      if (carGroup) {
+        carGroup.add(newMesh);
+      } else {
+        scene.add(newMesh);
+      }
+
+      closeAddPartModal();
+      rebuildPartsIndex();
+      selectMesh(newMesh);
+    }
+
+    function deleteSelectedPart() {
+      if (!selectedMesh || !carGroup) return;
+      recordState();
+
+      selectedMesh.geometry.dispose();
+      carGroup.remove(selectedMesh);
+      selectedMesh = null;
+      boxHelper.visible = false;
+
+      rebuildPartsIndex();
+    }
+
+    // =========================================================
+    // 8. MULTI-VIEWPORT RENDERÖINTI
+    // =========================================================
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('btn-mode-3d').className = (mode === '3d') ? 'active' : 'secondary';
+      document.getElementById('btn-mode-edit').className = (mode === 'edit') ? 'active' : 'secondary';
+      
+      const container = document.getElementById('main-container');
+      container.className = (mode === '3d') ? 'mode-3d full-width' : '';
+      
+      document.getElementById('sidebar').style.display = (mode === '3d') ? 'none' : 'flex';
+      onWindowResize();
+    }
+
+    function updateOrthoCameras(aspect) {
+      const orthoSize = 2.5;
+      [camTop, camFront, camSide].forEach(cam => {
+        cam.left = -orthoSize * aspect;
+        cam.right = orthoSize * aspect;
+        cam.top = orthoSize;
+        cam.bottom = -orthoSize;
+        cam.updateProjectionMatrix();
+      });
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('main-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      renderer.setSize(width, height);
+
+      const quadAspect = (width * 0.5) / (height * 0.5);
+      cam3D.aspect = (currentMode === '3d') ? width / height : quadAspect;
+      cam3D.updateProjectionMatrix();
+
+      updateOrthoCameras(currentMode === '3d' ? width / height : quadAspect);
+    }
+
+    function renderViewport(camera, left, bottom, width, height) {
+      renderer.setViewport(left, bottom, width, height);
+      renderer.setScissor(left, bottom, width, height);
+      renderer.setScissorTest(true);
+      renderer.render(scene, camera);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      orbit3D.update();
+
+      const container = document.getElementById('main-container');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+
+      if (currentMode === '3d') {
+        renderer.setViewport(0, 0, w, h);
+        renderer.setScissorTest(false);
+        renderer.render(scene, cam3D);
+      } else {
+        const w2 = Math.floor(w / 2);
+        const h2 = Math.floor(h / 2);
+
+        renderViewport(cam3D, 0, h - h2, w2, h2);            // Ylä-Vasen: 3D
+        renderViewport(camTop, w2, h - h2, w - w2, h2);      // Ylä-Oikea: Top / Bottom
+        renderViewport(camFront, 0, 0, w2, h - h2);          // Ala-Vasen: Front / Back
+        renderViewport(camSide, w2, 0, w - w2, h - h2);      // Ala-Oikea: Side R / Side L
+      }
+    }
+
+    // =========================================================
+    // 9. EXPORT / IMPORT
+    // =========================================================
+    function exportJSModel() {
+      showNotification(`Tallennettu automallin (${currentModelKey}) tila!`);
+    }
+
+    function importJSModel(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        try {
+          const scriptFunc = new Function(content);
+          scriptFunc();
+          syncModelDropdown();
+          const availableKeys = Object.keys(window.CAR_MODELS || {});
+          if (availableKeys.length > 0) {
+            loadSelectedModel(availableKeys[availableKeys.length - 1]);
+          }
+          showNotification("Malli ladattu onnistuneesti");
+        } catch (err) {
+          showNotification("Virhe tiedoston suorituksessa!");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    window.onload = initStudio;
+  </script>
+</body>
+</html>
