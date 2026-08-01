@@ -898,6 +898,8 @@
     var carGroup;
     if (window.CAR_MODELS && typeof window.CAR_MODELS[modelType] === 'function') {
       carGroup = window.CAR_MODELS[modelType](bodyColorHex, accentColorHex, carTexUrl);
+    } else if (window.CAR_MODELS && typeof window.CAR_MODELS['simple'] === 'function') {
+      carGroup = window.CAR_MODELS['simple'](bodyColorHex, accentColorHex, carTexUrl);
     } else {
       carGroup = new THREE.Group();
       var bodyGeo = new THREE.BoxGeometry(1.7, 0.5, 3.4);
@@ -983,14 +985,16 @@
       carGroup.add(tl1); carGroup.add(tl2);
     }
 
-    var glowGeo = new THREE.BoxGeometry(1.95, 0.85, 3.8);
-    var glowMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff, transparent: true, opacity: 0.0, side: THREE.BackSide
-    });
-    var glowMesh = new THREE.Mesh(glowGeo, glowMat);
-    glowMesh.position.set(0, 0.5, 0);
-    carGroup.add(glowMesh);
-    carGroup.userData.glowMesh = glowMesh;
+    if (!carGroup.userData.glowMesh) {
+      var glowGeo = new THREE.BoxGeometry(1.95, 0.85, 3.8);
+      var glowMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff, transparent: true, opacity: 0.0, side: THREE.BackSide
+      });
+      var glowMesh = new THREE.Mesh(glowGeo, glowMat);
+      glowMesh.position.set(0, 0.5, 0);
+      carGroup.add(glowMesh);
+      carGroup.userData.glowMesh = glowMesh;
+    }
 
     return carGroup;
   }
@@ -1023,20 +1027,20 @@
 
     for(var i = 0; i < numCompetitors; i++) {
       var isPlayerCar = (i < numPlayers);
-      var carName = "", carColor = "", carTexIdx = 0, carModel = 'simple';
+      var carName = "", carColor = "", carTexIdx = 0, carModel = 'forder';
 
       if(isPlayerCar) {
         var cfg = playerConfigs[i];
         carName = (cfg.name && cfg.name.trim() !== "") ? cfg.name.trim() : ("Pelaaja " + (i + 1));
         carColor = cfg.color;
         carTexIdx = cfg.texIdx;
-        carModel = cfg.model || 'simple';
+        carModel = cfg.model || 'forder';
       } else {
         carName = "Tietokone " + aiCounter;
         aiCounter++;
         carColor = availColors[(i - numPlayers) % availColors.length];
         carTexIdx = availTextures[(i - numPlayers) % availTextures.length];
-        carModel = 'simple';
+        carModel = 'forder';
       }
 
       var carTexUrl = carTexPaths[carTexIdx] ? carTexPaths[carTexIdx].url : '';
@@ -1330,7 +1334,7 @@
   }
 
   /* ---------------------------------------------------------------
-     FYSIIKKALASKENNAn SILMUKKA
+     FYSIIKKALASKENNAN SILMUKKA
   --------------------------------------------------------------- */
   function updatePhysics(delta) {
     if (!isRacing || !currentTrack) return;
@@ -1915,6 +1919,27 @@
     waterGroup.visible = true;
   }
 
+  // OPTIMOINTI: ESIKÄÄNNETÄÄN WEBGL-VARJOSTIMET (SHADERS) TUNNELI-LAGIN POISTAMISEKSI
+  function precompileShaders(state) {
+    if (!renderer || !scene || !camera) return;
+
+    // Tilapäisesti aktivoidaan kaikkien autojen ajovalot esikäännöksen ajaksi
+    cars.forEach(function(c) {
+      if (c.headlight1) c.headlight1.visible = true;
+      if (c.headlight2) c.headlight2.visible = true;
+    });
+
+    // Pakotetaan WebGL kääntämään kaikki PBR-materiaali- ja valovarjostimet (kerralla radan latauksessa)
+    renderer.compile(scene, camera);
+
+    // Palautetaan valojen oikea näkyvyystila
+    var isNight = (state.currentTimeOfDay === 'yo');
+    cars.forEach(function(c) {
+      if (c.headlight1) c.headlight1.visible = isNight || c.inTunnel;
+      if (c.headlight2) c.headlight2.visible = isNight || c.inTunnel;
+    });
+  }
+
   function regenerateAll(state) {
     state = state || (callbacks.getGameState ? callbacks.getGameState() : {});
 
@@ -1981,6 +2006,7 @@
     sun.position.set(midX+180, avgY+30, midZ+90);
 
     updatePuddleReflections();
+    precompileShaders(state);
   }
 
   function generateCustomDrawnTrack(customDrawnPoints, canvasW, canvasH, state) {
@@ -2052,6 +2078,7 @@
     sun.position.set(midX+180, avgY+30, midZ+90);
 
     updatePuddleReflections();
+    precompileShaders(state);
   }
 
   /* ---------------------------------------------------------------
