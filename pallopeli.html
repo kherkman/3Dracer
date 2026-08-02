@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3D Racer — Pallopeli</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#090d16; font-family:'Segoe UI', system-ui, sans-serif; touch-action:none; }
+  canvas { display:block; touch-action:none; }
+
+  /* YLÄPALKKI / HUD */
+  #gameHud {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 200; display: flex; align-items: center; gap: 20px;
+    background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.2); padding: 8px 24px;
+    border-radius: 16px; color: #fff; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .team-score { font-size: 1.8rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+  .timer-box { font-family: Consolas, monospace; font-size: 1.6rem; font-weight: 800; color: #ffee00; background: rgba(0,0,0,0.4); padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(255,238,0,0.3); }
+
+  #exitBtn {
+    position: fixed; top: 12px; left: 12px; z-index: 300;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(225, 29, 72, 0.9); color: #fff; font-size: 1.4rem; font-weight: bold;
+    border: 2px solid #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4); transition: transform 0.15s ease;
+  }
+  #exitBtn:hover { transform: scale(1.1); background: #be123c; }
+
+  /* RUUTUJAKAJAT (SPLIT-SCREEN DIVIDERS) */
+  .grid-divider { display:none; position:fixed; background:#111; z-index:100; box-shadow:0 0 8px rgba(0,0,0,0.6); }
+  #dividerH { top:50%; left:0; width:100%; height:4px; transform:translateY(-50%); }
+  #dividerV { top:0; left:50%; width:4px; height:100%; transform:translateX(-50%); }
+  #dividerVTop { top:0; left:50%; width:4px; height:50%; transform:translateX(-50%); }
+
+  /* MAALI BANNERI */
+  #goalBanner {
+    position: fixed; inset: 0; z-index: 500; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    pointer-events: none;
+  }
+  #goalText {
+    font-size: 6rem; font-weight: 900; font-style: italic;
+    color: #ffee00; text-shadow: 0 0 30px #ff00aa, 0 10px 20px rgba(0,0,0,0.8);
+    animation: goalPop 0.5s ease-out;
+  }
+  @keyframes goalPop {
+    0% { transform: scale(0.2); opacity: 0; }
+    80% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1.0); }
+  }
+
+  /* MODAALIT */
+  #teamsModal, #matchResultModal {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(9, 13, 22, 0.92); backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #matchResultModal { display: none; }
+
+  .teams-card {
+    background: #1e293b; border: 2px solid #334155; border-radius: 20px;
+    width: 100%; max-width: 680px; padding: 28px; color: #fff;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 16px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .teams-card h2 { font-size: 1.8rem; font-weight: 900; color: #00f0ff; text-align: center; }
+
+  .team-setup-box {
+    display: flex; gap: 14px; background: #0f172a; padding: 14px; border-radius: 12px; border: 1px solid #334155;
+  }
+  .team-setup-col {
+    flex: 1; display: flex; flex-direction: column; gap: 8px;
+  }
+  .team-setup-col label { font-size: 0.82rem; font-weight: 700; color: #cbd5e1; }
+  .team-input {
+    width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155;
+    background: #1e293b; color: #fff; font-size: 0.95rem; font-weight: 700; outline: none;
+  }
+  .team-color-picker {
+    -webkit-appearance: none; border: none; width: 100%; height: 36px;
+    border-radius: 8px; cursor: pointer; background: none;
+  }
+
+  .player-team-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #0f172a; padding: 10px 16px; border-radius: 10px; border: 1px solid #334155;
+  }
+  .player-name { font-weight: 700; font-size: 0.95rem; }
+  .team-toggle-btn {
+    padding: 8px 16px; border-radius: 8px; border: none; font-weight: 800;
+    cursor: pointer; transition: all 0.2s; font-size: 0.88rem;
+  }
+
+  .action-btn {
+    background: linear-gradient(135deg, #10b981, #059669); color: #fff;
+    border: none; padding: 14px; border-radius: 12px; font-size: 1.1rem;
+    font-weight: 900; cursor: pointer; text-align: center; transition: transform 0.15s, background 0.15s;
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); flex: 1;
+  }
+  .action-btn:hover { transform: translateY(-2px); }
+  .action-btn.secondary-btn {
+    background: #334155; color: #f8fafc; box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+  }
+  .action-btn.secondary-btn:hover { background: #475569; }
+
+  /* KOSKETUS-HUDIT */
+  .touch-controls-container { position: fixed; z-index: 250; display: none; pointer-events: auto; touch-action: none; }
+  .joystick-base { position: absolute; display: none; width: 140px; height: 140px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); border: 3px solid rgba(255, 255, 255, 0.6); transform: translate(-50%, -50%); pointer-events: none; }
+  .joystick-stick { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; border-radius: 50%; background: #f97316; border: 2px solid #fff; transform: translate(-50%, -50%); pointer-events: none; }
+</style>
+</head>
+<body>
+
+<button id="exitBtn" title="Sulje pallopeli">✕</button>
+
+<div id="dividerH" class="grid-divider"></div>
+<div id="dividerV" class="grid-divider"></div>
+<div id="dividerVTop" class="grid-divider"></div>
+
+<!-- PELI HUD -->
+<div id="gameHud">
+  <div class="team-score"><span id="lblTeam1" style="color:#00f0ff;">TIIMI 1</span> <span id="scoreT1">0</span></div>
+  <div class="timer-box" id="matchTimer">03:00</div>
+  <div class="team-score"><span id="scoreT2">0</span> <span id="lblTeam2" style="color:#ff0055;">TIIMI 2</span></div>
+</div>
+
+<!-- MAALI BANNERI -->
+<div id="goalBanner">
+  <div id="goalText">⚽ MAALI!</div>
+  <div id="goalScoredBy" style="color:#fff; font-size:1.5rem; font-weight:700; margin-top:10px;"></div>
+</div>
+
+<!-- TIIMIT VALINTA-IKKUNA -->
+<div id="teamsModal">
+  <div class="teams-card">
+    <h2>⚽ TIIMI- JA PELIASETUKSET</h2>
+    
+    <div class="team-setup-box">
+      <div class="team-setup-col">
+        <label>🩵 Tiimin 1 Nimi & Väri:</label>
+        <input type="text" id="team1NameInput" class="team-input" value="Tiimi 1" maxlength="14">
+        <input type="color" id="team1ColorInput" class="team-color-picker" value="#00f0ff">
+      </div>
+      <div class="team-setup-col">
+        <label>🩷 Tiimin 2 Nimi & Väri:</label>
+        <input type="text" id="team2NameInput" class="team-input" value="Tiimi 2" maxlength="14">
+        <input type="color" id="team2ColorInput" class="team-color-picker" value="#ff0055">
+      </div>
+    </div>
+
+    <div id="playersTeamList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    
+    <div style="font-size:0.82rem; color:#94a3b8; text-align:center;">
+      Tietokonepelaajat jaetaan tiimeihin automaattisesti mahdollisimman tasan!
+    </div>
+    <button class="action-btn" id="startGameBtn">🏎️ Aloita peli</button>
+  </div>
+</div>
+
+<!-- OTTELUN TULOSRUUTU -->
+<div id="matchResultModal">
+  <div class="teams-card" style="align-items: center; text-align: center;">
+    <h2 style="font-size: 2.2rem; color: #ffee00;">🏁 OTTELU PÄÄTTYI!</h2>
+    <div id="resultWinnerText" style="font-size: 1.8rem; font-weight: 900; color: #ffffff; margin-top: 5px;"></div>
+    
+    <div style="display: flex; align-items: center; justify-content: center; gap: 20px; background: #0f172a; padding: 16px 30px; border-radius: 14px; border: 1px solid #334155; width: 100%; margin: 10px 0;">
+      <div style="font-size: 1.4rem; font-weight: 800;" id="resTeam1Lbl">TIIMI 1</div>
+      <div style="font-size: 2.2rem; font-weight: 900; color: #ffee00; font-family: Consolas, monospace;" id="finalScoreText">0 - 0</div>
+      <div style="font-size: 1.4rem; font-weight: 800;" id="resTeam2Lbl">TIIMI 2</div>
+    </div>
+
+    <div style="display: flex; gap: 12px; width: 100%;">
+      <button class="action-btn secondary-btn" id="restartMatchBtn">🔄 Uusi ottelu</button>
+      <button class="action-btn" id="returnMenuBtn">🏠 Päävalikkoon</button>
+    </div>
+  </div>
+</div>
+
+<!-- KOSKETUSNÄYTÖN OHJAIMET -->
+<div id="touchP1" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+<div id="touchP2" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+<div id="touchP3" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+<div id="touchP4" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="audio.js"></script>
+<script src="player-controls.js"></script>
+
+<!-- Autot -->
+<script src="forder.js"></script>
+<script src="porcher.js"></script>
+<script src="lotuser.js"></script>
+<script src="pontiacer.js"></script>
+<script src="lambo.js"></script>
+<script src="ferrarer.js"></script>
+<script src="simple.js"></script>
+
+<!-- Ympäristöt -->
+<script src="env_simple.js"></script>
+<script src="env_simplekuusi.js"></script>
+<script src="env_simplekoivu.js"></script>
+<script src="env_simplepalmu.js"></script>
+<script src="env_palmu.js"></script>
+<script src="env_kuusi.js"></script>
+<script src="env_koivu.js"></script>
+<script src="env_kaupunki.js"></script>
+<script src="env_jattisieni.js"></script>
+<script src="env_jattikukkaniitty.js"></script>
+<script src="env_suo.js"></script>
+<script src="env_pyramidit.js"></script>
+<script src="env_synthwave.js"></script>
+<script src="env_hitech.js"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- PARAMETRIT & LOCALSTORAGE ---
+  var durationMin = parseInt(localStorage.getItem('ballGameDuration') || '3') || 3;
+  var numPlayers = parseInt(localStorage.getItem('numPlayers') || '1') || 1;
+  var numCompetitors = parseInt(localStorage.getItem('numCompetitors') || '4') || 4;
+
+  var currentEnvironment = localStorage.getItem('currentEnvironment') || 'simple';
+  var currentSeason = localStorage.getItem('currentSeason') || 'kesa';
+  var currentTimeOfDay = localStorage.getItem('currentTimeOfDay') || 'paiva';
+  var texturesEnabled = localStorage.getItem('texturesEnabled') !== 'false';
+  var isRain = localStorage.getItem('isRain') === 'true';
+  var isFog = localStorage.getItem('isFog') === 'true';
+  var isClouds = localStorage.getItem('isClouds') === 'true';
+
+  window.texturesEnabled = texturesEnabled;
+
+  var team1Name = "Tiimi 1";
+  var team1Color = "#00f0ff";
+  var team2Name = "Tiimi 2";
+  var team2Color = "#ff0055";
+
+  var playerConfigs = JSON.parse(localStorage.getItem('playerConfigs') || 'null') || [
+    { name: "Pelaaja 1", ctrl: "keyboard", color: "#d42419", texIdx: 1, model: "forder", cameraPos: "far" },
+    { name: "Pelaaja 2", ctrl: "keyboard", color: "#28a745", texIdx: 1, model: "forder", cameraPos: "far" },
+    { name: "Pelaaja 3", ctrl: "keyboard", color: "#eb8b00", texIdx: 1, model: "forder", cameraPos: "far" },
+    { name: "Pelaaja 4", ctrl: "keyboard", color: "#8e24aa", texIdx: 1, model: "forder", cameraPos: "far" }
+  ];
+
+  var CAR_TEXTURE_PATHS = [
+    { name: 'Ei tekstuuria', url: '' },
+    { name: 'Tekstuuri 1', url: 'car_tex1.jpg' },
+    { name: 'Tekstuuri 2', url: 'car_tex2.jpg' },
+    { name: 'Tekstuuri 3', url: 'car_tex3.jpg' },
+    { name: 'Tekstuuri 4', url: 'car_tex4.jpg' },
+    { name: 'Tekstuuri 5', url: 'car_tex5.jpg' },
+    { name: 'Tekstuuri 6', url: 'car_tex6.jpg' },
+    { name: 'Tekstuuri 7', url: 'car_tex7.jpg' },
+    { name: 'Tekstuuri 8', url: 'car_tex8.jpg' }
+  ];
+
+  var playerTeams = [1, 2, 1, 2];
+  var isMatchRunning = false;
+  var matchTimeRemaining = durationMin * 60;
+  var scoreT1 = 0, scoreT2 = 0;
+  var isGoalCooldown = false;
+
+  // --- THREE.JS NÄYTTÄMÖ & KAMERAT ---
+  var scene = new THREE.Scene();
+  
+  if (currentEnvironment === 'synthwave') {
+    scene.background = new THREE.Color(0x2d0b5a);
+    scene.fog = new THREE.FogExp2(0x200033, 0.0035);
+  } else if (currentEnvironment === 'pyramidit') {
+    scene.background = new THREE.Color(0xf5c999);
+    scene.fog = new THREE.FogExp2(0xe2b082, 0.003);
+  } else if (currentEnvironment === 'jattisieni') {
+    scene.background = new THREE.Color(0x2d0b5a);
+    scene.fog = new THREE.FogExp2(0x2d0b5a, 0.0035);
+  } else if (currentEnvironment === 'suo') {
+    scene.background = new THREE.Color(0x738060);
+    scene.fog = new THREE.FogExp2(0x3a4835, 0.004);
+  } else if (currentTimeOfDay === 'yo') {
+    scene.background = new THREE.Color(0x0a0e17);
+    scene.fog = new THREE.FogExp2(0x0a0e17, 0.0035);
+  } else if (currentSeason === 'talvi') {
+    scene.background = new THREE.Color(0xcbd5e1);
+    scene.fog = new THREE.FogExp2(0x94a3b8, 0.003);
+  } else {
+    scene.background = new THREE.Color(0x60a5fa);
+    scene.fog = new THREE.FogExp2(0x93c5fd, 0.003);
+  }
+
+  var camera1 = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 800);
+  var camera2 = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 800);
+  var camera3 = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 800);
+  var camera4 = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 800);
+
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  document.body.appendChild(renderer.domElement);
+
+  // Valaistus
+  var ambientLight = new THREE.AmbientLight(0xffffff, currentTimeOfDay === 'yo' ? 0.35 : 0.85);
+  scene.add(ambientLight);
+
+  var sunLight = new THREE.DirectionalLight(currentTimeOfDay === 'yo' ? 0x88aacc : 0xfffbe8, currentTimeOfDay === 'yo' ? 0.4 : 1.5);
+  sunLight.position.set(60, 100, 50);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.camera.left = -110; sunLight.shadow.camera.right = 110;
+  sunLight.shadow.camera.top = 80; sunLight.shadow.camera.bottom = -80;
+  scene.add(sunLight);
+
+  // --- LOKALISOITU LATAUSAPURI TEXTUUREILLE ---
+  var textureLoader = new THREE.TextureLoader();
+  var loadedTexturesCache = {};
+
+  function loadTextureWithFallback(url, repeatX, repeatY, fallbackColor, label) {
+    if (!url) return null;
+    if (loadedTexturesCache[url]) return loadedTexturesCache[url];
+
+    var tex = textureLoader.load(
+      url,
+      function(t) {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        if (repeatX && repeatY) t.repeat.set(repeatX, repeatY);
+        t.needsUpdate = true;
+      },
+      undefined,
+      function() {
+        var c = document.createElement('canvas'); c.width = c.height = 128;
+        var ctxC = c.getContext('2d'); ctxC.fillStyle = fallbackColor || '#888888'; ctxC.fillRect(0,0,128,128);
+        var fb = new THREE.CanvasTexture(c);
+        fb.wrapS = fb.wrapT = THREE.RepeatWrapping;
+        if (repeatX && repeatY) fb.repeat.set(repeatX, repeatY);
+        tex.image = fb.image; tex.needsUpdate = true;
+      }
+    );
+    loadedTexturesCache[url] = tex;
+    return tex;
+  }
+  window.loadTextureWithFallback = loadTextureWithFallback;
+
+  // --- MAASTOTASO KENTÄN ULKOPUOLELLE VASTAAMAAN VALITTUA YMPÄRISTÖÄ ---
+  var groundTexUrl = 'nurmikko.jpg';
+  var groundColor = 0x225511;
+
+  if (currentEnvironment === 'pyramidit') {
+    groundTexUrl = 'hiekka.jpg'; groundColor = 0xd4a373;
+  } else if (currentEnvironment === 'kaupunki') {
+    groundTexUrl = 'cityfloor.jpg'; groundColor = 0x334155;
+  } else if (currentEnvironment === 'hitech') {
+    groundTexUrl = 'futurecityfloor.jpg'; groundColor = 0x0f172a;
+  } else if (currentEnvironment === 'jattisieni') {
+    groundTexUrl = 'sienimaa.jpg'; groundColor = 0x2d0b5a;
+  } else if (currentEnvironment === 'suo') {
+    groundTexUrl = 'suo.jpg'; groundColor = 0x3a4835;
+  } else if (currentSeason === 'talvi') {
+    groundTexUrl = 'lumi.jpg'; groundColor = 0xe2e8f0;
+  }
+
+  var outerGroundGeo = new THREE.PlaneGeometry(450, 450);
+  var outerGroundTex = loadTextureWithFallback(groundTexUrl, 16, 16, '#' + new THREE.Color(groundColor).getHexString(), 'GROUND');
+  var outerGroundMat = new THREE.MeshStandardMaterial({ map: outerGroundTex, roughness: 0.9, metalness: 0.05 });
+  var outerGroundMesh = new THREE.Mesh(outerGroundGeo, outerGroundMat);
+  outerGroundMesh.rotation.x = -Math.PI / 2;
+  outerGroundMesh.position.y = -0.05;
+  outerGroundMesh.receiveShadow = true;
+  scene.add(outerGroundMesh);
+
+  // --- PELIPALLOKENTTÄ (130 x 80) ---
+  var FIELD_W = 130;
+  var FIELD_H = 80;
+  var GOAL_W = 22;
+  var GOAL_H = 8;
+
+  var pitchTex = loadTextureWithFallback('pallopelitaso.jpg', 1, 1, '#1e3a20', 'PALLOPELI');
+  var pitchGeo = new THREE.PlaneGeometry(FIELD_W, FIELD_H);
+  var pitchMat = new THREE.MeshStandardMaterial({ map: pitchTex, roughness: 0.75, metalness: 0.1 });
+  var pitchMesh = new THREE.Mesh(pitchGeo, pitchMat);
+  pitchMesh.rotation.x = -Math.PI / 2;
+  pitchMesh.receiveShadow = true;
+  scene.add(pitchMesh);
+
+  // TÖRMÄYSSEINÄT JA MAALIT
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.3, transparent: true, opacity: 0.65 });
+
+  function createBoxWall(w, h, d, x, y, z) {
+    var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    scene.add(mesh);
+  }
+
+  createBoxWall(FIELD_W + 2, 4, 2, 0, 2, -FIELD_H/2 - 1);
+  createBoxWall(FIELD_W + 2, 4, 2, 0, 2, FIELD_H/2 + 1);
+
+  var sideWallLen = (FIELD_H - GOAL_W) / 2;
+  createBoxWall(2, 4, sideWallLen, -FIELD_W/2 - 1, 2, -FIELD_H/2 + sideWallLen/2);
+  createBoxWall(2, 4, sideWallLen, -FIELD_W/2 - 1, 2, FIELD_H/2 - sideWallLen/2);
+
+  createBoxWall(2, 4, sideWallLen, FIELD_W/2 + 1, 2, -FIELD_H/2 + sideWallLen/2);
+  createBoxWall(2, 4, sideWallLen, FIELD_W/2 + 1, 2, FIELD_H/2 - sideWallLen/2);
+
+  function buildGoal(xPos, colorHex) {
+    var goalGroup = new THREE.Group();
+    var frameMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.8, roughness: 0.2 });
+    var netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
+
+    var p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, GOAL_H), frameMat);
+    p1.position.set(0, GOAL_H/2, -GOAL_W/2);
+    var p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, GOAL_H), frameMat);
+    p2.position.set(0, GOAL_H/2, GOAL_W/2);
+
+    var topBar = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, GOAL_W), frameMat);
+    topBar.rotation.x = Math.PI/2;
+    topBar.position.set(0, GOAL_H, 0);
+
+    var netBox = new THREE.Mesh(new THREE.BoxGeometry(6, GOAL_H, GOAL_W), netMat);
+    netBox.position.set(xPos > 0 ? 3 : -3, GOAL_H/2, 0);
+
+    goalGroup.add(p1); goalGroup.add(p2); goalGroup.add(topBar); goalGroup.add(netBox);
+    goalGroup.position.set(xPos, 0, 0);
+    scene.add(goalGroup);
+  }
+
+  buildGoal(-FIELD_W/2, 0x00f0ff);
+  buildGoal(FIELD_W/2, 0xff0055);
+
+  // PALAUTETUT STADIONIN VALONHEITINTORNIT
+  function buildFloodlightTower(x, z) {
+    var towerGroup = new THREE.Group();
+    var poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
+    var lightMat = new THREE.MeshBasicMaterial({ color: 0xfffae0 });
+
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 22, 8), poleMat);
+    pole.position.y = 11;
+    towerGroup.add(pole);
+
+    var frame = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 0.6), poleMat);
+    frame.position.set(0, 22, 0);
+    towerGroup.add(frame);
+
+    var panel = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.6, 0.2), lightMat);
+    panel.position.set(0, 22, 0.3);
+    towerGroup.add(panel);
+
+    var pLight = new THREE.PointLight(0xfffae0, 1.2, 80);
+    pLight.position.set(0, 22, 1);
+    towerGroup.add(pLight);
+
+    towerGroup.position.set(x, 0, z);
+    towerGroup.lookAt(0, 5, 0);
+    scene.add(towerGroup);
+  }
+
+  buildFloodlightTower(-72, -48);
+  buildFloodlightTower(72, -48);
+  buildFloodlightTower(-72, 48);
+  buildFloodlightTower(72, 48);
+
+  // --- DYNAAMINEN YMPÄRISTÖ KENTÄN ULKOPUOLELLE ---
+  function buildSurroundingEnvironment() {
+    var mockTrack = { n: 1, samples: [{ x: 0, z: 0, y: 0, tx: 1, tz: 0 }] };
+    var bounds = { cx: 0, cz: 0, size: 400, minX: -200, maxX: 200, minZ: -200, maxZ: 200 };
+
+    var mockCtx = {
+      currentSeason: currentSeason,
+      currentTimeOfDay: currentTimeOfDay,
+      currentEnvironment: currentEnvironment,
+      texturesEnabled: texturesEnabled,
+      isRain: isRain,
+      isFog: isFog,
+      isClouds: isClouds,
+      ROAD_HALF_WIDTH: 4.0,
+      CURB_WIDTH: 0.55,
+      closestSampleInfo: function(track, x, z) {
+        var dx = Math.max(0, Math.abs(x) - 67);
+        var dz = Math.max(0, Math.abs(z) - 42);
+        var distToPitch = Math.sqrt(dx * dx + dz * dz);
+        return { dist: distToPitch, sampleIndex: 0, sample: { x: x, z: z, y: 0 } };
+      },
+      terrainSample: function(track, x, z) {
+        return { y: 0, color: [0.22, 0.45, 0.18] };
+      },
+      getRoadSurfaceHeight: function(track, x, z) { return 0; },
+      loadTextureWithFallback: loadTextureWithFallback,
+      ENV_TEXTURE_PATHS: {
+        grass: 'nurmikko.jpg', kukkamaa: 'kukkamaa.jpg', suo: 'suo.jpg',
+        pyramidi: 'pyramidi.jpg', lumi: 'lumi.jpg', asphalt: 'asfaltti.jpg',
+        gravel: 'hiekka.jpg', foliage: 'kuusenpiikit.jpg', trunk: 'kuusenrunko.jpg',
+        cityfloor: 'cityfloor.jpg', hitechroad: 'futurecityfloor.jpg',
+        hitechfloor: 'hitech_floor.jpg', shroomfloor: 'sienimaa.jpg',
+        sienitie: 'sienitie.jpg', varikko: 'varikko.jpg', booster: 'kiihdytin.jpg',
+        pallo: 'pallo.jpg'
+      },
+      CITY_TEXTURE_PATHS: ['city_tex1.jpg', 'city_tex2.jpg', 'city_tex3.jpg', 'city_tex4.jpg', 'city_tex5.jpg'],
+      HITECH_TEXTURE_PATHS: ['hitech_tex1.jpg', 'hitech_tex2.jpg', 'hitech_tex3.jpg', 'hitech_tex4.jpg'],
+      CAR_TEXTURE_PATHS: CAR_TEXTURE_PATHS
+    };
+
+    if (window.ENV_BUILDERS && typeof window.ENV_BUILDERS[currentEnvironment] === 'function') {
+      var envObjects = window.ENV_BUILDERS[currentEnvironment](mockTrack, bounds, mockCtx);
+      if (envObjects) scene.add(envObjects);
+    } else if (window.ENV_BUILDERS && typeof window.ENV_BUILDERS['simple'] === 'function') {
+      var envObjectsSimple = window.ENV_BUILDERS['simple'](mockTrack, bounds, mockCtx);
+      if (envObjectsSimple) scene.add(envObjectsSimple);
+    }
+  }
+
+  buildSurroundingEnvironment();
+
+  // --- PELIPALLO ---
+  var ballRadius = 2.4;
+  var ballTex = loadTextureWithFallback('pelipallo.jpg', 1, 1, '#ffffff', 'PALLO');
+  var ballGeo = new THREE.SphereGeometry(ballRadius, 32, 32);
+  var ballMat = new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.3, metalness: 0.1 });
+  var ballMesh = new THREE.Mesh(ballGeo, ballMat);
+  ballMesh.castShadow = true;
+  scene.add(ballMesh);
+
+  var ballPhys = { x: 0, y: ballRadius, z: 0, vx: 0, vz: 0, rotX: 0, rotZ: 0 };
+
+  function resetBall() {
+    ballPhys.x = 0; ballPhys.y = ballRadius; ballPhys.z = 0;
+    ballPhys.vx = 0; ballPhys.vz = 0;
+    ballMesh.position.set(0, ballRadius, 0);
+  }
+
+  // --- AUTOT JA TIIMIT ---
+  var cars = [];
+
+  function buildCarMesh(bodyColorHex, accentHex, carTexUrl, modelType) {
+    modelType = modelType || 'forder';
+    var carGroup = null;
+
+    if (window.CAR_MODELS && typeof window.CAR_MODELS[modelType] === 'function') {
+      carGroup = window.CAR_MODELS[modelType](bodyColorHex, accentHex, carTexUrl);
+    } else {
+      carGroup = new THREE.Group();
+      var bMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.6, 3.6), new THREE.MeshStandardMaterial({ color: bodyColorHex }));
+      bMesh.position.y = 0.5; bMesh.castShadow = true;
+      carGroup.add(bMesh);
+    }
+    return carGroup;
+  }
+
+  function setupCarsAndTeams() {
+    cars.forEach(function(c) { if (c.mesh) scene.remove(c.mesh); });
+    cars = [];
+
+    var team1Count = 0, team2Count = 0;
+
+    for (var i = 0; i < numCompetitors; i++) {
+      var isHuman = (i < numPlayers);
+      var team = 1;
+
+      if (isHuman) {
+        team = playerTeams[i] || 1;
+      } else {
+        if (team1Count <= team2Count) { team = 1; } else { team = 2; }
+      }
+
+      if (team === 1) team1Count++; else team2Count++;
+
+      var name = "", texUrl = "", model = 'forder';
+      var teamColorHex = (team === 1) ? team1Color : team2Color;
+
+      if (isHuman) {
+        var cfg = playerConfigs[i] || {};
+        name = cfg.name || ("Pelaaja " + (i + 1));
+        texUrl = CAR_TEXTURE_PATHS[cfg.texIdx] ? CAR_TEXTURE_PATHS[cfg.texIdx].url : '';
+        model = cfg.model || 'forder';
+      } else {
+        name = "AI Auto " + (i - numPlayers + 1);
+        model = 'forder';
+      }
+
+      var mesh = buildCarMesh(teamColorHex, '#111111', texUrl, model);
+      scene.add(mesh);
+
+      cars.push({
+        id: i, name: name, team: team, isHuman: isHuman,
+        mesh: mesh, x: 0, y: 0, z: 0, angle: 0, speed: 0, targetAngle: 0,
+        aiSpeed: 18.0 + Math.random() * 4.0
+      });
+    }
+
+    resetKickoffPositions();
+  }
+
+  function resetKickoffPositions() {
+    var t1Idx = 0, t2Idx = 0;
+    cars.forEach(function(c) {
+      if (c.team === 1) {
+        c.x = -20 - (t1Idx * 8);
+        c.z = (t1Idx % 2 === 0 ? 1 : -1) * (10 + t1Idx * 4);
+        c.angle = Math.PI / 2;
+        t1Idx++;
+      } else {
+        c.x = 20 + (t2Idx * 8);
+        c.z = (t2Idx % 2 === 0 ? 1 : -1) * (10 + t2Idx * 4);
+        c.angle = -Math.PI / 2;
+        t2Idx++;
+      }
+      c.speed = 0;
+      c.targetAngle = c.angle;
+      c.mesh.position.set(c.x, 0, c.z);
+      c.mesh.rotation.y = c.angle;
+    });
+  }
+
+  // --- TÖRMÄYSFYSIIKKA & MAALIT ---
+  function updateBallPhysics(delta) {
+    ballPhys.vx *= 0.982;
+    ballPhys.vz *= 0.982;
+
+    ballPhys.x += ballPhys.vx * delta;
+    ballPhys.z += ballPhys.vz * delta;
+
+    ballPhys.rotX += ballPhys.vz * delta * 0.4;
+    ballPhys.rotZ -= ballPhys.vx * delta * 0.4;
+
+    var minX = -FIELD_W/2 + ballRadius;
+    var maxX = FIELD_W/2 - ballRadius;
+    var minZ = -FIELD_H/2 + ballRadius;
+    var maxZ = FIELD_H/2 - ballRadius;
+
+    if (ballPhys.z < minZ) { ballPhys.z = minZ; ballPhys.vz *= -0.7; }
+    if (ballPhys.z > maxZ) { ballPhys.z = maxZ; ballPhys.vz *= -0.7; }
+
+    if (Math.abs(ballPhys.z) > GOAL_W/2 - ballRadius) {
+      if (ballPhys.x < minX) { ballPhys.x = minX; ballPhys.vx *= -0.7; }
+      if (ballPhys.x > maxX) { ballPhys.x = maxX; ballPhys.vx *= -0.7; }
+    } else {
+      if (!isGoalCooldown) {
+        if (ballPhys.x < -FIELD_W/2 - 2) {
+          scoreGoal(2, team2Name.toUpperCase() + " TEKI MAALIN!");
+        } else if (ballPhys.x > FIELD_W/2 + 2) {
+          scoreGoal(1, team1Name.toUpperCase() + " TEKI MAALIN!");
+        }
+      }
+    }
+
+    ballMesh.position.set(ballPhys.x, ballRadius, ballPhys.z);
+    ballMesh.rotation.x = ballPhys.rotX;
+    ballMesh.rotation.z = ballPhys.rotZ;
+  }
+
+  function checkCarBallCollisions() {
+    cars.forEach(function(c) {
+      var dx = ballPhys.x - c.x;
+      var dz = ballPhys.z - c.z;
+      var dist = Math.sqrt(dx*dx + dz*dz);
+      var minDist = ballRadius + 1.6;
+
+      if (dist < minDist && dist > 0.001) {
+        var nx = dx / dist;
+        var nz = dz / dist;
+
+        ballPhys.x = c.x + nx * minDist;
+        ballPhys.z = c.z + nz * minDist;
+
+        var carSpeedMag = Math.abs(c.speed);
+        var pushForce = 8.0 + carSpeedMag * 1.4;
+
+        ballPhys.vx = nx * pushForce + Math.sin(c.angle) * carSpeedMag * 0.8;
+        ballPhys.vz = nz * pushForce + Math.cos(c.angle) * carSpeedMag * 0.8;
+
+        if (window.AudioEngine) AudioEngine.playFX('pelipallo');
+      }
+    });
+  }
+
+  function scoreGoal(scoringTeam, textMsg) {
+    isGoalCooldown = true;
+    if (scoringTeam === 1) scoreT1++; else scoreT2++;
+
+    document.getElementById('scoreT1').textContent = scoreT1;
+    document.getElementById('scoreT2').textContent = scoreT2;
+
+    var banner = document.getElementById('goalBanner');
+    var txt = document.getElementById('goalScoredBy');
+    banner.style.display = 'flex';
+    txt.textContent = textMsg;
+
+    if (window.AudioEngine) AudioEngine.playFX('finish');
+
+    setTimeout(function() {
+      banner.style.display = 'none';
+      resetBall();
+      resetKickoffPositions();
+      isGoalCooldown = false;
+    }, 3000);
+  }
+
+  // --- AUTOJEN FYSIIKKA, TÖRMÄYKSET & AI ---
+  function updateCars(delta) {
+    cars.forEach(function(c, i) {
+      if (c.isHuman) {
+        var inp = window.PlayerControls ? PlayerControls.getPlayerControls(i, playerConfigs, numPlayers) : {};
+        var accel = 32.0; var brake = 35.0; var friction = 5.0; var maxSpeed = 38.0;
+
+        if (inp.gas) c.speed += accel * delta;
+        else if (inp.brake) c.speed -= brake * delta;
+        else {
+          if (c.speed > 0) c.speed = Math.max(0, c.speed - friction * delta);
+          else if (c.speed < 0) c.speed = Math.min(0, c.speed + friction * delta);
+        }
+        c.speed = THREE.MathUtils.clamp(c.speed, -12, maxSpeed);
+
+        if (Math.abs(c.speed) > 0.5) {
+          var dirFactor = c.speed > 0 ? 1 : -1;
+          var leftVal = typeof inp.left === 'number' ? inp.left : (inp.left ? 1 : 0);
+          var rightVal = typeof inp.right === 'number' ? inp.right : (inp.right ? 1 : 0);
+          c.targetAngle += (leftVal - rightVal) * 3.2 * dirFactor * delta;
+          c.angle = THREE.MathUtils.lerp(c.angle, c.targetAngle, delta * 18.0);
+        }
+      } else {
+        var targetX = ballPhys.x;
+        var targetZ = ballPhys.z;
+
+        var dx = targetX - c.x;
+        var dz = targetZ - c.z;
+        var desiredAngle = Math.atan2(dx, dz);
+
+        var angleDiff = desiredAngle - c.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI*2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI*2;
+
+        c.angle += THREE.MathUtils.clamp(angleDiff, -2.5 * delta, 2.5 * delta);
+        c.speed = THREE.MathUtils.lerp(c.speed, c.aiSpeed, delta * 3.0);
+      }
+
+      var nextX = c.x + Math.sin(c.angle) * c.speed * delta;
+      var nextZ = c.z + Math.cos(c.angle) * c.speed * delta;
+
+      var margin = 1.8;
+      nextX = THREE.MathUtils.clamp(nextX, -FIELD_W/2 + margin, FIELD_W/2 - margin);
+      nextZ = THREE.MathUtils.clamp(nextZ, -FIELD_H/2 + margin, FIELD_H/2 - margin);
+
+      c.x = nextX; c.z = nextZ;
+      c.mesh.position.set(c.x, 0, c.z);
+      c.mesh.rotation.y = c.angle;
+    });
+
+    // AUTOJEN KESKINÄISET TÖRMÄYKSET
+    for (var i = 0; i < cars.length; i++) {
+      for (var j = i + 1; j < cars.length; j++) {
+        var c1 = cars[i], c2 = cars[j];
+        var dx = c1.x - c2.x;
+        var dz = c1.z - c2.z;
+        var dist = Math.sqrt(dx * dx + dz * dz);
+        var minDist = 2.2;
+
+        if (dist < minDist && dist > 0.001) {
+          var overlap = (minDist - dist) * 0.5;
+          var nx = dx / dist, nz = dz / dist;
+
+          c1.x += nx * overlap; c1.z += nz * overlap; c1.speed *= 0.7;
+          c2.x -= nx * overlap; c2.z -= nz * overlap; c2.speed *= 0.7;
+
+          c1.mesh.position.set(c1.x, 0, c1.z);
+          c2.mesh.position.set(c2.x, 0, c2.z);
+
+          if (window.AudioEngine && Math.random() < 0.35) {
+            AudioEngine.playFX('collision');
+          }
+        }
+      }
+    }
+  }
+
+  // --- KISOJEN KAMERA SÄÄDÖT PELAAJILTA & KAKSIKUVARUUTU (SPLIT SCREEN) ---
+  function updateCameras() {
+    var cams = [camera1, camera2, camera3, camera4];
+
+    for (var i = 0; i < numPlayers; i++) {
+      var p = cars[i];
+      if (!p) continue;
+
+      var cam = cams[i];
+      var cfg = playerConfigs[i] || {};
+      var mode = cfg.cameraPos || 'far';
+
+      var fX = Math.sin(p.angle);
+      var fZ = Math.cos(p.angle);
+
+      if (mode === 'near') {
+        cam.up.set(0, 1, 0);
+        var camDist = 6.0, camHeight = 2.5;
+        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x - fX * camDist, 0.18);
+        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + camHeight, 0.18);
+        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z - fZ * camDist, 0.18);
+        cam.lookAt(p.x + fX * 4, p.y + 1.0, p.z + fZ * 4);
+      } else if (mode === 'windshield') {
+        cam.up.set(0, 1, 0);
+        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x + fX * 0.2, 0.35);
+        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + 0.95, 0.35);
+        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z + fZ * 0.2, 0.35);
+        cam.lookAt(p.x + fX * 30.0, p.y + 0.95, p.z + fZ * 30.0);
+      } else if (mode === 'topdown') {
+        cam.up.set(fX, 0, fZ);
+        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x, 0.2);
+        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + 28.0, 0.2);
+        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z, 0.2);
+        cam.lookAt(p.x, p.y, p.z);
+      } else { // 'far'
+        cam.up.set(0, 1, 0);
+        var camDist = 18.0, camHeight = 12.0;
+        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x - fX * camDist, 0.12);
+        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + camHeight, 0.12);
+        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z - fZ * camDist, 0.12);
+        cam.lookAt(p.x + fX * 5, p.y + 1.0, p.z + fZ * 5);
+      }
+    }
+  }
+
+  function renderSplitScreen() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var cams = [camera1, camera2, camera3, camera4];
+
+    var dH = document.getElementById('dividerH');
+    var dV = document.getElementById('dividerV');
+    var dVTop = document.getElementById('dividerVTop');
+
+    if (dH) dH.style.display = (numPlayers >= 2) ? 'block' : 'none';
+    if (dV) dV.style.display = (numPlayers === 4) ? 'block' : 'none';
+    if (dVTop) dVTop.style.display = (numPlayers === 3) ? 'block' : 'none';
+
+    if (numPlayers === 1) {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+      cams[0].aspect = w / h; cams[0].updateProjectionMatrix();
+      renderer.render(scene, cams[0]);
+    } else if (numPlayers === 2) {
+      var halfH = Math.floor(h / 2);
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(0, halfH, w, halfH);
+      renderer.setScissor(0, halfH, w, halfH);
+      cams[0].aspect = w / halfH; cams[0].updateProjectionMatrix();
+      renderer.render(scene, cams[0]);
+
+      renderer.setViewport(0, 0, w, halfH);
+      renderer.setScissor(0, 0, w, halfH);
+      cams[1].aspect = w / halfH; cams[1].updateProjectionMatrix();
+      renderer.render(scene, cams[1]);
+
+      renderer.setScissorTest(false);
+    } else if (numPlayers === 3) {
+      var halfW = Math.floor(w / 2);
+      var halfH = Math.floor(h / 2);
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(0, halfH, halfW, halfH);
+      renderer.setScissor(0, halfH, halfW, halfH);
+      cams[0].aspect = halfW / halfH; cams[0].updateProjectionMatrix();
+      renderer.render(scene, cams[0]);
+
+      renderer.setViewport(halfW, halfH, halfW, halfH);
+      renderer.setScissor(halfW, halfH, halfW, halfH);
+      cams[1].aspect = halfW / halfH; cams[1].updateProjectionMatrix();
+      renderer.render(scene, cams[1]);
+
+      renderer.setViewport(0, 0, w, halfH);
+      renderer.setScissor(0, 0, w, halfH);
+      cams[2].aspect = w / halfH; cams[2].updateProjectionMatrix();
+      renderer.render(scene, cams[2]);
+
+      renderer.setScissorTest(false);
+    } else if (numPlayers === 4) {
+      var halfW = Math.floor(w / 2);
+      var halfH = Math.floor(h / 2);
+      renderer.setScissorTest(true);
+
+      renderer.setViewport(0, halfH, halfW, halfH);
+      renderer.setScissor(0, halfH, halfW, halfH);
+      cams[0].aspect = halfW / halfH; cams[0].updateProjectionMatrix();
+      renderer.render(scene, cams[0]);
+
+      renderer.setViewport(halfW, halfH, halfW, halfH);
+      renderer.setScissor(halfW, halfH, halfW, halfH);
+      cams[1].aspect = halfW / halfH; cams[1].updateProjectionMatrix();
+      renderer.render(scene, cams[1]);
+
+      renderer.setViewport(0, 0, halfW, halfH);
+      renderer.setScissor(0, 0, halfW, halfH);
+      cams[2].aspect = halfW / halfH; cams[2].updateProjectionMatrix();
+      renderer.render(scene, cams[2]);
+
+      renderer.setViewport(halfW, 0, halfW, halfH);
+      renderer.setScissor(halfW, 0, halfW, halfH);
+      cams[3].aspect = halfW / halfH; cams[3].updateProjectionMatrix();
+      renderer.render(scene, cams[3]);
+
+      renderer.setScissorTest(false);
+    }
+  }
+
+  function positionTouchControls() {
+    var tContainersJoystick = [
+      document.getElementById('touchP1'),
+      document.getElementById('touchP2'),
+      document.getElementById('touchP3'),
+      document.getElementById('touchP4')
+    ];
+
+    for(var i=0; i<4; i++) {
+      if (tContainersJoystick[i]) tContainersJoystick[i].style.display = 'none';
+    }
+
+    if(!isMatchRunning) return;
+
+    for(var i = 0; i < numPlayers; i++) {
+      var el = tContainersJoystick[i];
+      if (!el) continue;
+      el.style.display = 'block';
+
+      if(numPlayers === 1) {
+        el.style.top = '0'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '100%';
+      } else if(numPlayers === 2) {
+        if(i === 0) { el.style.top = '0'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '50%'; }
+        else { el.style.top = '50%'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '50%'; }
+      } else if(numPlayers === 3) {
+        if(i === 0) { el.style.top = '0'; el.style.left = '0'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 1) { el.style.top = '0'; el.style.left = '50%'; el.style.width = '50%'; el.style.height = '50%'; }
+        else { el.style.top = '50%'; el.style.left = '0'; el.style.width = '100%'; el.style.height = '50%'; }
+      } else if(numPlayers === 4) {
+        if(i === 0) { el.style.top = '0'; el.style.left = '0'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 1) { el.style.top = '0'; el.style.left = '50%'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 2) { el.style.top = '50%'; el.style.left = '0'; el.style.width = '50%'; el.style.height = '50%'; }
+        else if(i === 3) { el.style.top = '50%'; el.style.left = '50%'; el.style.width = '50%'; el.style.height = '50%'; }
+      }
+    }
+  }
+
+  // --- TIIMIT MODAALI OHJAUS ---
+  function initTeamsModal() {
+    var list = document.getElementById('playersTeamList');
+    list.innerHTML = '';
+
+    var t1NameInput = document.getElementById('team1NameInput');
+    var t1ColorInput = document.getElementById('team1ColorInput');
+    var t2NameInput = document.getElementById('team2NameInput');
+    var t2ColorInput = document.getElementById('team2ColorInput');
+
+    if (t1NameInput) t1NameInput.value = team1Name;
+    if (t1ColorInput) t1ColorInput.value = team1Color;
+    if (t2NameInput) t2NameInput.value = team2Name;
+    if (t2ColorInput) t2ColorInput.value = team2Color;
+
+    for (var i = 0; i < numPlayers; i++) {
+      var row = document.createElement('div');
+      row.className = 'player-team-row';
+
+      var pName = playerConfigs[i].name || ("Pelaaja " + (i + 1));
+      var tNum = playerTeams[i];
+
+      row.innerHTML = '<span class="player-name">' + pName + '</span>' +
+        '<button class="team-toggle-btn ' + (tNum === 1 ? 'team-1-btn' : 'team-2-btn') + '" data-player="' + i + '">' +
+        (tNum === 1 ? '🩵 ' + team1Name.toUpperCase() : '🩷 ' + team2Name.toUpperCase()) + '</button>';
+
+      list.appendChild(row);
+    }
+
+    list.querySelectorAll('.team-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        var pIdx = parseInt(e.target.getAttribute('data-player'));
+        playerTeams[pIdx] = playerTeams[pIdx] === 1 ? 2 : 1;
+        initTeamsModal();
+      });
+    });
+
+    document.getElementById('startGameBtn').onclick = function() {
+      if (t1NameInput && t1NameInput.value.trim()) team1Name = t1NameInput.value.trim();
+      if (t1ColorInput) team1Color = t1ColorInput.value;
+      if (t2NameInput && t2NameInput.value.trim()) team2Name = t2NameInput.value.trim();
+      if (t2ColorInput) team2Color = t2ColorInput.value;
+
+      document.getElementById('teamsModal').style.display = 'none';
+      updateHudUIColors();
+      startMatch();
+    };
+  }
+
+  function updateHudUIColors() {
+    var lbl1 = document.getElementById('lblTeam1');
+    var lbl2 = document.getElementById('lblTeam2');
+    if (lbl1) { lbl1.textContent = team1Name.toUpperCase(); lbl1.style.color = team1Color; }
+    if (lbl2) { lbl2.textContent = team2Name.toUpperCase(); lbl2.style.color = team2Color; }
+  }
+
+  function startMatch() {
+    setupCarsAndTeams();
+    resetBall();
+    scoreT1 = 0; scoreT2 = 0;
+    document.getElementById('scoreT1').textContent = '0';
+    document.getElementById('scoreT2').textContent = '0';
+    matchTimeRemaining = durationMin * 60;
+    isMatchRunning = true;
+    positionTouchControls();
+    if (window.AudioEngine) AudioEngine.tryPlayMusic();
+  }
+
+  function showMatchResultModal() {
+    isMatchRunning = false;
+    positionTouchControls();
+    var resultModal = document.getElementById('matchResultModal');
+    var winnerTxt = document.getElementById('resultWinnerText');
+    var scoreTxt = document.getElementById('finalScoreText');
+
+    var resLbl1 = document.getElementById('resTeam1Lbl');
+    var resLbl2 = document.getElementById('resTeam2Lbl');
+
+    if (resLbl1) { resLbl1.textContent = team1Name.toUpperCase(); resLbl1.style.color = team1Color; }
+    if (resLbl2) { resLbl2.textContent = team2Name.toUpperCase(); resLbl2.style.color = team2Color; }
+
+    if (scoreT1 > scoreT2) {
+      winnerTxt.textContent = "🏆 " + team1Name.toUpperCase() + " VOITTI!";
+      winnerTxt.style.color = team1Color;
+    } else if (scoreT2 > scoreT1) {
+      winnerTxt.textContent = "🏆 " + team2Name.toUpperCase() + " VOITTI!";
+      winnerTxt.style.color = team2Color;
+    } else {
+      winnerTxt.textContent = "🤝 TASAPELI!";
+      winnerTxt.style.color = "#ffee00";
+    }
+
+    scoreTxt.textContent = scoreT1 + " - " + scoreT2;
+    resultModal.style.display = 'flex';
+  }
+
+  document.getElementById('restartMatchBtn').onclick = function() {
+    document.getElementById('matchResultModal').style.display = 'none';
+    startMatch();
+  };
+
+  document.getElementById('returnMenuBtn').onclick = function() {
+    window.location.href = 'index.html';
+  };
+
+  // AJASTIN
+  setInterval(function() {
+    if (!isMatchRunning || isGoalCooldown) return;
+    matchTimeRemaining--;
+    if (matchTimeRemaining <= 0) {
+      matchTimeRemaining = 0;
+      showMatchResultModal();
+    }
+
+    var m = Math.floor(matchTimeRemaining / 60);
+    var s = matchTimeRemaining % 60;
+    document.getElementById('matchTimer').textContent = (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+  }, 1000);
+
+  // LOPETA NAPPI
+  document.getElementById('exitBtn').onclick = function() {
+    window.location.href = 'index.html';
+  };
+
+  // MAIN SILMUKKA
+  var clock = new THREE.Clock();
+  function animate() {
+    requestAnimationFrame(animate);
+    var delta = clock.getDelta();
+
+    if (isMatchRunning) {
+      updateCars(delta);
+      updateBallPhysics(delta);
+      checkCarBallCollisions();
+      updateCameras();
+    }
+
+    renderSplitScreen();
+  }
+
+  window.addEventListener('resize', function() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  if (window.PlayerControls) {
+    PlayerControls.initListeners(function() { return isMatchRunning; });
+    PlayerControls.bindAllTouchControls();
+  }
+
+  initTeamsModal();
+  animate();
+
+})();
+</script>
+</body>
+</html>
