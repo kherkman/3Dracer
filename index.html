@@ -57,7 +57,7 @@
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
   }
-  #ui h1 { font-size:1.1rem; font-weight:700; margin-bottom:10px; color:#33301f; }
+  #ui h1 { font-size:1.1rem; font-weight:700; color:#33301f; }
 
   .ui-buttons-grid {
     display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:12px;
@@ -76,6 +76,8 @@
   .btn.race:hover { background:#218838; }
   .btn.career { background:#009688; color:#fff; border-color:#00796b; grid-column: span 2; font-size:0.85rem; padding:11px; }
   .btn.career:hover { background:#00796b; }
+  .btn.ballgame { background:#e11d48; color:#fff; border-color:#be123c; grid-column: span 2; font-size:0.85rem; padding:11px; }
+  .btn.ballgame:hover { background:#be123c; }
   .btn.players-btn { background:#0066cc; color:#fff; border-color:#0052a3; font-size:0.78rem; grid-column: span 2; }
   .btn.players-btn:hover { background:#0052a3; }
   .btn.env-btn { background:#6b21a8; color:#fff; border-color:#581c87; font-size:0.78rem; grid-column: span 2; }
@@ -157,12 +159,12 @@
   .ctrl-group { display:flex; flex-direction:column; gap:3px; font-size:0.75rem; font-weight:600; color:#4a5568; }
   .ctrl-group label { display:flex; align-items:center; gap:4px; }
   
-  .player-name-input, .ctrl-select, .car-tex-select, .car-model-select {
+  .player-name-input, .ctrl-select, .car-tex-select, .car-model-select, .camera-pos-select {
     width:100%; padding:6px 8px; border-radius:6px; border:1px solid #cbd5e1;
     background:#fff; font-size:0.78rem; font-weight:600; color:#1e293b; outline:none;
     touch-action: manipulation; user-select:text; -webkit-user-select:text;
   }
-  .player-name-input:focus, .ctrl-select:focus, .car-tex-select:focus, .car-model-select:focus { border-color:#d4611f; }
+  .player-name-input:focus, .ctrl-select:focus, .car-tex-select:focus, .car-model-select:focus, .camera-pos-select:focus { border-color:#d4611f; }
 
   .color-picker-row {
     display:flex; align-items:center; justify-content:space-between; gap:8px;
@@ -634,6 +636,11 @@
     </div>
 
     <div class="setting-row">
+      <label for="ballGameDurationInput">⚽ Pallopelin kesto (min):</label>
+      <input type="number" id="ballGameDurationInput" min="1" max="10" value="3">
+    </div>
+
+    <div class="setting-row">
       <label for="numLaps">🔄 Kierrokset (1-20):</label>
       <input type="number" id="numLaps" min="1" max="20" value="3">
     </div>
@@ -698,42 +705,48 @@
 </div>
 
 <div id="ui">
-  <h1>🏁 Autokisaradan generaattori</h1>
-
-  <div class="setting-row">
-    <label for="numCompetitors">🏁 Kilpailijat (1-8):</label>
-    <input type="number" id="numCompetitors" min="1" max="8" value="2">
+  <div style="display:flex; justify-space-between; align-items:center; margin-bottom:10px;">
+    <h1 style="margin-bottom:0;">🏁 Autokisaradan generaattori</h1>
+    <button id="toggleUiPanelBtn" style="background:rgba(0,0,0,0.1); border:1px solid rgba(0,0,0,0.2); border-radius:6px; width:28px; height:28px; font-size:0.9rem; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; touch-action:manipulation;" title="Pienennä / Laajenna ikkuna">—</button>
   </div>
 
-  <div class="setting-row">
-    <label for="numPlayers">🎮 Pelaajat (1-4):</label>
-    <input type="number" id="numPlayers" min="1" max="4" value="1">
-  </div>
-
-  <div class="ui-buttons-grid">
-    <button class="btn race" id="raceBtn">🏎️ Aloita kisa</button>
-    <button class="btn career" id="careerBtn">🏆 Aloita Ura</button>
-    <button class="btn players-btn" id="openPlayersModalBtn">🎮 Pelaajat & Autot</button>
-    <button class="btn env-btn" id="openEnvModalBtn">🌲 Ympäristö</button>
-    <button class="btn random-btn" id="randomEnvBtn">🎲 Satunnaisympäristö</button>
-    <button class="btn" id="regenBtn" style="grid-column: span 2;">🔄 Uusi rata</button>
-    <button class="btn" id="drawTrackBtn" style="grid-column: span 2; background:#0284c7; color:#fff;">✏️ Radan piirto</button>
-    <button class="btn" id="flyBtn">📷 Ajolinja</button>
-    <button class="btn" id="rotateBtn">↻ Kierto</button>
-    <button class="btn settings-btn" id="openSettingsModalBtn">⚙️ Asetukset</button>
-    <button class="btn" id="stereoBtn" style="grid-column: span 2;">🥽 3D Stereo Off</button>
-  </div>
-
-  <div id="stereoControls">
+  <div id="uiPanelContent">
     <div class="setting-row">
-      <label for="eyeDistSlider">👁️ Silmäväli (IPD):</label>
-      <input type="range" id="eyeDistSlider" min="0.01" max="0.80" step="0.01" value="0.15">
-      <span id="eyeDistVal" class="hud-val">0.15m</span>
+      <label for="numCompetitors">🏁 Kilpailijat (1-8):</label>
+      <input type="number" id="numCompetitors" min="1" max="8" value="2">
     </div>
+
     <div class="setting-row">
-      <label for="imgOffsetSlider">↔️ Kuvan siirtymä:</label>
-      <input type="range" id="imgOffsetSlider" min="-60" max="60" step="1" value="0">
-      <span id="imgOffsetVal" class="hud-val">0px</span>
+      <label for="numPlayers">🎮 Pelaajat (1-4):</label>
+      <input type="number" id="numPlayers" min="1" max="4" value="1">
+    </div>
+
+    <div class="ui-buttons-grid">
+      <button class="btn race" id="raceBtn">🏎️ Aloita kisa</button>
+      <button class="btn career" id="careerBtn">🏆 Aloita Ura</button>
+      <button class="btn ballgame" id="ballGameBtn">⚽ Aloita Pallopeli</button>
+      <button class="btn players-btn" id="openPlayersModalBtn">🎮 Pelaajat & Autot</button>
+      <button class="btn env-btn" id="openEnvModalBtn">🌲 Ympäristö</button>
+      <button class="btn random-btn" id="randomEnvBtn">🎲 Satunnaisympäristö</button>
+      <button class="btn" id="regenBtn" style="grid-column: span 2;">🔄 Uusi rata</button>
+      <button class="btn" id="drawTrackBtn" style="grid-column: span 2; background:#0284c7; color:#fff;">✏️ Radan piirto</button>
+      <button class="btn" id="flyBtn">📷 Ajolinja</button>
+      <button class="btn" id="rotateBtn">↻ Kierto</button>
+      <button class="btn settings-btn" id="openSettingsModalBtn">⚙️ Asetukset</button>
+      <button class="btn" id="stereoBtn" style="grid-column: span 2;">🥽 3D Stereo Off</button>
+    </div>
+
+    <div id="stereoControls">
+      <div class="setting-row">
+        <label for="eyeDistSlider">👁️ Silmäväli (IPD):</label>
+        <input type="range" id="eyeDistSlider" min="0.01" max="0.80" step="0.01" value="0.15">
+        <span id="eyeDistVal" class="hud-val">0.15m</span>
+      </div>
+      <div class="setting-row">
+        <label for="imgOffsetSlider">↔️ Kuvan siirtymä:</label>
+        <input type="range" id="imgOffsetSlider" min="-60" max="60" step="1" value="0">
+        <span id="imgOffsetVal" class="hud-val">0px</span>
+      </div>
     </div>
   </div>
 </div>
@@ -776,6 +789,18 @@
 <!-- Pääohjelman suoritus -->
 <script src="game-core.js"></script>
 <script src="main.js"></script>
+
+<script>
+  var toggleUiPanelBtn = document.getElementById('toggleUiPanelBtn');
+  var uiPanelContent = document.getElementById('uiPanelContent');
+  if (toggleUiPanelBtn && uiPanelContent) {
+    toggleUiPanelBtn.addEventListener('click', function() {
+      var isHidden = uiPanelContent.style.display === 'none';
+      uiPanelContent.style.display = isHidden ? 'block' : 'none';
+      toggleUiPanelBtn.textContent = isHidden ? '—' : '＋';
+    });
+  }
+</script>
 
 </body>
 </html>
