@@ -1071,7 +1071,9 @@
       } else {
         groundTexUrl = ENV_TEXTURE_PATHS.grass;
       }
-      terrainTex = texturesEnabled ? loadTextureWithFallback(groundTexUrl, size / 6, size / 6, '#d4a373', 'HIEKKA') : null;
+      var repX = (currentEnvironment === 'jattisieni' || currentEnvironment === 'suo') ? 1 : (size / 6);
+      var repY = (currentEnvironment === 'jattisieni' || currentEnvironment === 'suo') ? 1 : (size / 6);
+      terrainTex = texturesEnabled ? loadTextureWithFallback(groundTexUrl, repX, repY, '#d4a373', 'HIEKKA') : null;
     }
 
     var mat = new THREE.MeshStandardMaterial({
