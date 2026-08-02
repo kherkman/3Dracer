@@ -31,6 +31,7 @@
   var preGenCareerTracksEnabled = false; // Ennakkoradat uralle On/Off
   var minimapEnabled = false;          // Ratakuva On/Off
   var rearviewMirrorEnabled = false;   // Taustapeili On/Off
+  var ballGameDuration = 3;            // Pallopelin kesto minuutteina (oletus 3 min)
 
   var preGeneratedTracks = [];
   var preGenCurrentIndex = 0;
@@ -82,10 +83,10 @@
   var targetLaps = 3;
 
   var playerConfigs = [
-    { name: "Pelaaja 1", ctrl: defaultControlMethod, color: "#d42419", texIdx: 1, model: "forder" },
-    { name: "Pelaaja 2", ctrl: defaultControlMethod, color: "#28a745", texIdx: 1, model: "forder" },
-    { name: "Pelaaja 3", ctrl: defaultControlMethod, color: "#eb8b00", texIdx: 1, model: "forder" },
-    { name: "Pelaaja 4", ctrl: defaultControlMethod, color: "#8e24aa", texIdx: 1, model: "forder" }
+    { name: "Pelaaja 1", ctrl: defaultControlMethod, color: "#d42419", texIdx: 1, model: "forder", cameraPos: "far" },
+    { name: "Pelaaja 2", ctrl: defaultControlMethod, color: "#28a745", texIdx: 1, model: "forder", cameraPos: "far" },
+    { name: "Pelaaja 3", ctrl: defaultControlMethod, color: "#eb8b00", texIdx: 1, model: "forder", cameraPos: "far" },
+    { name: "Pelaaja 4", ctrl: defaultControlMethod, color: "#8e24aa", texIdx: 1, model: "forder", cameraPos: "far" }
   ];
 
   var previewScenes = [];
@@ -662,6 +663,16 @@
       html += '</div>';
 
       html += '<div class="ctrl-group">';
+      html += '<label>📹 Kameran sijainti:</label>';
+      html += '<select class="camera-pos-select" data-player="' + i + '">';
+      html += '<option value="far"' + ((cfg.cameraPos === 'far' || !cfg.cameraPos) ? ' selected' : '') + '>📷 Kaukana (Oletus)</option>';
+      html += '<option value="near"' + (cfg.cameraPos === 'near' ? ' selected' : '') + '>🔍 Lähellä</option>';
+      html += '<option value="windshield"' + (cfg.cameraPos === 'windshield' ? ' selected' : '') + '>🏎️ Tuulilasi</option>';
+      html += '<option value="topdown"' + (cfg.cameraPos === 'topdown' ? ' selected' : '') + '>⬇️ Ylhäältä Alas</option>';
+      html += '</select>';
+      html += '</div>';
+
+      html += '<div class="ctrl-group">';
       html += '<label>🏎️ Auton malli:</label>';
       html += '<select class="car-model-select" data-player="' + i + '">';
       CAR_MODELS_LIST.forEach(function(m) {
@@ -701,6 +712,13 @@
       sel.addEventListener('change', function(e) {
         var pIdx = parseInt(e.target.getAttribute('data-player'));
         playerConfigs[pIdx].ctrl = e.target.value;
+      });
+    });
+
+    container.querySelectorAll('.camera-pos-select').forEach(function(sel) {
+      sel.addEventListener('change', function(e) {
+        var pIdx = parseInt(e.target.getAttribute('data-player'));
+        playerConfigs[pIdx].cameraPos = e.target.value;
       });
     });
 
@@ -920,6 +938,16 @@
       var val = parseInt(e.target.value) || 0;
       timeLimitSetting = Math.max(0, val);
       e.target.value = timeLimitSetting;
+    });
+  }
+
+  var ballGameDurationInput = document.getElementById('ballGameDurationInput');
+  if (ballGameDurationInput) {
+    ballGameDurationInput.addEventListener('change', function(e) {
+      var val = parseInt(e.target.value) || 3;
+      ballGameDuration = THREE.MathUtils.clamp(val, 1, 10);
+      e.target.value = ballGameDuration;
+      localStorage.setItem('ballGameDuration', ballGameDuration);
     });
   }
 
@@ -1988,6 +2016,25 @@
         customDrawnPoints = [];
         redrawCanvas();
       }
+    });
+  }
+
+  // ALOITA PALLOPELI -NAPIN KUUNTELIJA (Tallennetaan kaikki valitut ympäristötyypit)
+  var ballGameBtn = document.getElementById('ballGameBtn');
+  if (ballGameBtn) {
+    ballGameBtn.addEventListener('click', function() {
+      localStorage.setItem('ballGameDuration', ballGameDuration);
+      localStorage.setItem('numPlayers', numPlayers);
+      localStorage.setItem('numCompetitors', numCompetitors);
+      localStorage.setItem('playerConfigs', JSON.stringify(playerConfigs));
+      localStorage.setItem('currentEnvironment', currentEnvironment);
+      localStorage.setItem('currentSeason', currentSeason);
+      localStorage.setItem('currentTimeOfDay', currentTimeOfDay);
+      localStorage.setItem('texturesEnabled', texturesEnabled);
+      localStorage.setItem('isRain', isRain);
+      localStorage.setItem('isFog', isFog);
+      localStorage.setItem('isClouds', isClouds);
+      window.location.href = 'pallopeli.html';
     });
   }
 
