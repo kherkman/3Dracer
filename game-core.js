@@ -1870,29 +1870,69 @@
   }
 
   function updateCameras() {
-    var camDist = 8.5, camHeight = 3.2;
     var cams = [camera, camera2, camera3, camera4];
     var state = callbacks.getGameState ? callbacks.getGameState() : {};
     var numPlayers = state.numPlayers || 1;
+    var playerConfigs = state.playerConfigs || [];
 
     for(var i = 0; i < numPlayers; i++) {
       if(cars.length > i) {
         var p = cars[i];
         var cam = cams[i];
+        var cfg = playerConfigs[i] || {};
+        var mode = cfg.cameraPos || 'far';
 
-        var targetCamX = p.x - Math.sin(p.angle) * camDist;
-        var targetCamZ = p.z - Math.cos(p.angle) * camDist;
-        var targetCamY = p.y + camHeight;
+        var fX = Math.sin(p.angle);
+        var fZ = Math.cos(p.angle);
 
-        cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.12);
-        cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.12);
-        cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.12);
+        if (mode === 'near') {
+          cam.up.set(0, 1, 0);
+          var camDist = 4.8, camHeight = 1.9;
+          var targetCamX = p.x - fX * camDist;
+          var targetCamZ = p.z - fZ * camDist;
+          var targetCamY = p.y + camHeight;
 
-        cam.lookAt(
-          p.x + Math.sin(p.angle) * 4,
-          p.y + 1.2,
-          p.z + Math.cos(p.angle) * 4
-        );
+          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.18);
+          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.18);
+          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.18);
+
+          cam.lookAt(p.x + fX * 4, p.y + 1.0, p.z + fZ * 4);
+        } else if (mode === 'windshield') {
+          cam.up.set(0, 1, 0);
+          var targetCamX = p.x + fX * 0.2;
+          var targetCamY = p.y + 0.95;
+          var targetCamZ = p.z + fZ * 0.2;
+
+          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.35);
+          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.35);
+          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.35);
+
+          cam.lookAt(p.x + fX * 30.0, p.y + 0.95, p.z + fZ * 30.0);
+        } else if (mode === 'topdown') {
+          cam.up.set(fX, 0, fZ);
+          var targetCamX = p.x;
+          var targetCamY = p.y + 26.0;
+          var targetCamZ = p.z;
+
+          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.2);
+          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.2);
+          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.2);
+
+          cam.lookAt(p.x, p.y, p.z);
+        } else {
+          // 'far' / default
+          cam.up.set(0, 1, 0);
+          var camDist = 8.5, camHeight = 3.2;
+          var targetCamX = p.x - fX * camDist;
+          var targetCamZ = p.z - fZ * camDist;
+          var targetCamY = p.y + camHeight;
+
+          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.12);
+          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.12);
+          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.12);
+
+          cam.lookAt(p.x + fX * 4, p.y + 1.2, p.z + fZ * 4);
+        }
       }
     }
   }
