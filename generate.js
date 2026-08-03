@@ -470,7 +470,7 @@
   }
 
   /* ---------------------------------------------------------------
-     TUNNELIN LUONTI & RAKENNE (KORJATTU TEKSTUURIN NÄKYVYYS)
+     TUNNELIN LUONTI & RAKENNE
   --------------------------------------------------------------- */
   function buildTunnelStructure(track, currentEnvironment, texturesEnabled, loadTextureWithFallback) {
     var tGroup = new THREE.Group();
@@ -504,7 +504,6 @@
       roofMat = new THREE.MeshBasicMaterial({ color: 0xff00aa, wireframe: true });
       lightMat = new THREE.MeshBasicMaterial({ color: 0xffee00 });
     } else {
-      // VALOISA POHJAVÄRI (#ffffff), jotta tunnelin JPG-tekstuuri erottuu selkeästi pimeän sijaan!
       wallMat = new THREE.MeshStandardMaterial({
         map: wallTex,
         color: 0xffffff,
@@ -1083,6 +1082,12 @@
     });
     var mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
+
+    // POISTETAAN MAA VALTAMERI-YMPÄRISTÖSSÄ
+    if (currentEnvironment === 'valtameri') {
+      mesh.visible = false;
+    }
+
     return { mesh: mesh, bounds: { minX: minX, maxX: maxX, minZ: minZ, maxZ: maxZ, cx: cx, cz: cz, size: size } };
   }
 
