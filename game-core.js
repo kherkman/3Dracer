@@ -126,7 +126,7 @@
       var posL = new Float32Array([
         c.lastSkidLeft.x, c.lastSkidLeft.y, c.lastSkidLeft.z,
         leftX, leftY, leftZ,
-        c.lastSkidLeft.x + perpX * 0.22, c.lastSkidLeft.y, c.lastSkidLeft.z + perpZ * 0.22,
+        c.lastSkidLeft.x + perpX * 0.22, c.lastSkidLeft.y, c.lastSkidLeft.z + perpX * 0.22,
         leftX + perpX * 0.22, leftY, leftZ + perpZ * 0.22
       ]);
       geoL.setAttribute('position', new THREE.BufferAttribute(posL, 3));
@@ -139,7 +139,7 @@
       var posR = new Float32Array([
         c.lastSkidRight.x, c.lastSkidRight.y, c.lastSkidRight.z,
         rightX, rightY, rightZ,
-        c.lastSkidRight.x - perpX * 0.22, c.lastSkidRight.y, c.lastSkidRight.z - perpZ * 0.22,
+        c.lastSkidRight.x - perpX * 0.22, c.lastSkidRight.y, c.lastSkidRight.z - perpX * 0.22,
         rightX - perpX * 0.22, rightY, rightZ - perpZ * 0.22
       ]);
       geoR.setAttribute('position', new THREE.BufferAttribute(posR, 3));
@@ -324,6 +324,10 @@
       scene.fog.far = 100000;
     }
 
+    if (renderer) {
+      renderer.toneMappingExposure = (currentEnvironment === 'valtameri') ? 0.85 : 1.05;
+    }
+
     if (currentEnvironment === 'synthwave') {
       skyMat.uniforms.topColor.value.set(0x2d0b5a);
       skyMat.uniforms.bottomColor.value.set(0xff007f);
@@ -364,6 +368,72 @@
       sunMesh.visible = false;
       moonMesh.visible = false;
       starsMesh.visible = true;
+    } else if (currentEnvironment === 'valtameri') {
+      // VASTAA TÄYDELLISESTI valtameri.html ILMAKEHÄÄ JA VALAISTUSTA
+      sunMesh.visible = true;
+      moonMesh.visible = false;
+      starsMesh.visible = false;
+
+      var elevation = 40, azimuth = 180;
+      var sunColHex = 0xffffff;
+      var fogColHex = 0xa0d8ef;
+      var topColHex = 0x006655;
+      var botColHex = 0xa0d8ef;
+      var sunInt = 2.2;
+
+      if (currentSeason === 'syksy') {
+        elevation = 3; azimuth = 200;
+        sunColHex = 0xff5500;
+        fogColHex = 0x22181c;
+        topColHex = 0x031018;
+        botColHex = 0x22181c;
+        sunInt = 2.5;
+      } else if (currentSeason === 'talvi') {
+        elevation = 1; azimuth = 215;
+        sunColHex = 0xbbe0ff;
+        fogColHex = 0xaec8de;
+        topColHex = 0x010d18;
+        botColHex = 0xaec8de;
+        sunInt = 1.5;
+      } else if (currentSeason === 'kevat') {
+        elevation = 15; azimuth = 150;
+        sunColHex = 0xffe2b4;
+        fogColHex = 0xcbe5ff;
+        topColHex = 0x007777;
+        botColHex = 0xcbe5ff;
+        sunInt = 1.9;
+      }
+
+      skyMat.uniforms.topColor.value.set(topColHex);
+      skyMat.uniforms.bottomColor.value.set(botColHex);
+
+      scene.fog.near = isFog ? 20 : 150;
+      scene.fog.far = isFog ? 250 : 1200;
+      scene.fog.color.set(isFog ? 0x003344 : fogColHex);
+
+      hemi.color.set(botColHex);
+      hemi.groundColor.set(topColHex);
+
+      sun.color.set(sunColHex);
+      sun.intensity = sunInt;
+
+      // Auringon paikan laskenta valtameri.html sfääristen koordinaattien mukaan
+      var phi = THREE.MathUtils.degToRad(90 - elevation);
+      var theta = THREE.MathUtils.degToRad(azimuth);
+      var dist = 250;
+
+      var sunX = dist * Math.sin(phi) * Math.sin(theta);
+      var sunY = dist * Math.cos(phi);
+      var sunZ = dist * Math.sin(phi) * Math.cos(theta);
+
+      var midX = controls.target.x || 0;
+      var midY = controls.target.y || 0;
+      var midZ = controls.target.z || 0;
+
+      sun.position.set(midX + sunX, midY + Math.max(10, sunY), midZ + sunZ);
+      sun.target.position.set(midX, midY, midZ);
+      sunMesh.position.set(midX + sunX, midY + Math.max(10, sunY), midZ + sunZ);
+
     } else if (currentTimeOfDay === 'yo') {
       skyMat.uniforms.topColor.value.set(0x020408);
       skyMat.uniforms.bottomColor.value.set(0x0d1424);
@@ -1998,6 +2068,13 @@
 
     var terr = TrackGenerator.buildTerrain(track, state.currentEnvironment, state.currentSeason, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
     terrainMesh = terr.mesh; terrainInfo = terr.bounds;
+    
+    // POISTETAAN MAA VALTAMERI-YMPÄRISTÖSSÄ
+    if (state.currentEnvironment === 'valtameri') {
+      terrainMesh.visible = false;
+    } else {
+      terrainMesh.visible = true;
+    }
     scene.add(terrainMesh);
 
     roadMesh = TrackGenerator.buildRoad(track, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS, state.currentEnvironment, state.gravelEnabled); scene.add(roadMesh);
@@ -2042,8 +2119,10 @@
     controls.target.set(midX, avgY+2, midZ);
     controls.setDistance(Math.max(60, terrainInfo.size*0.55));
 
-    sun.target.position.set(midX, avgY, midZ);
-    sun.position.set(midX+180, avgY+30, midZ+90);
+    if (state.currentEnvironment !== 'valtameri') {
+      sun.target.position.set(midX, avgY, midZ);
+      sun.position.set(midX+180, avgY+30, midZ+90);
+    }
 
     updatePuddleReflections();
     precompileShaders(state);
@@ -2070,6 +2149,13 @@
 
     var terr = TrackGenerator.buildTerrain(currentTrack, state.currentEnvironment, state.currentSeason, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
     terrainMesh = terr.mesh; terrainInfo = terr.bounds;
+
+    // POISTETAAN MAA VALTAMERI-YMPÄRISTÖSSÄ
+    if (state.currentEnvironment === 'valtameri') {
+      terrainMesh.visible = false;
+    } else {
+      terrainMesh.visible = true;
+    }
     scene.add(terrainMesh);
 
     roadMesh = TrackGenerator.buildRoad(currentTrack, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS, state.currentEnvironment, state.gravelEnabled); scene.add(roadMesh);
@@ -2114,8 +2200,10 @@
     controls.target.set(midX, avgY+2, midZ);
     controls.setDistance(Math.max(60, terrainInfo.size*0.55));
 
-    sun.target.position.set(midX, avgY, midZ);
-    sun.position.set(midX+180, avgY+30, midZ+90);
+    if (state.currentEnvironment !== 'valtameri') {
+      sun.target.position.set(midX, avgY, midZ);
+      sun.position.set(midX+180, avgY+30, midZ+90);
+    }
 
     updatePuddleReflections();
     precompileShaders(state);
