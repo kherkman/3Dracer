@@ -214,6 +214,7 @@
 <script src="env_pyramidit.js"></script>
 <script src="env_synthwave.js"></script>
 <script src="env_hitech.js"></script>
+<script src="env_valtameri.js"></script>
 
 <script>
 (function() {
@@ -279,6 +280,9 @@
   } else if (currentEnvironment === 'suo') {
     scene.background = new THREE.Color(0x738060);
     scene.fog = new THREE.FogExp2(0x3a4835, 0.004);
+  } else if (currentEnvironment === 'valtameri') {
+    scene.background = new THREE.Color(currentSeason === 'talvi' ? 0x011322 : 0x004455);
+    scene.fog = new THREE.FogExp2(0x004455, 0.003);
   } else if (currentTimeOfDay === 'yo') {
     scene.background = new THREE.Color(0x0a0e17);
     scene.fog = new THREE.FogExp2(0x0a0e17, 0.0035);
@@ -358,6 +362,8 @@
     groundTexUrl = 'sienimaa.jpg'; groundColor = 0x2d0b5a;
   } else if (currentEnvironment === 'suo') {
     groundTexUrl = 'suo.jpg'; groundColor = 0x3a4835;
+  } else if (currentEnvironment === 'valtameri') {
+    groundTexUrl = 'asfaltti.jpg'; groundColor = 0x004455;
   } else if (currentSeason === 'talvi') {
     groundTexUrl = 'lumi.jpg'; groundColor = 0xe2e8f0;
   }
@@ -430,7 +436,7 @@
   buildGoal(-FIELD_W/2, 0x00f0ff);
   buildGoal(FIELD_W/2, 0xff0055);
 
-  // PALAUTETUT STADIONIN VALONHEITINTORNIT
+  // STADIONIN VALONHEITINTORNIT
   function buildFloodlightTower(x, z) {
     var towerGroup = new THREE.Group();
     var poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
@@ -495,7 +501,7 @@
         cityfloor: 'cityfloor.jpg', hitechroad: 'futurecityfloor.jpg',
         hitechfloor: 'hitech_floor.jpg', shroomfloor: 'sienimaa.jpg',
         sienitie: 'sienitie.jpg', varikko: 'varikko.jpg', booster: 'kiihdytin.jpg',
-        pallo: 'pallo.jpg'
+        pallo: 'pallo.jpg', valtameri: 'asfaltti.jpg'
       },
       CITY_TEXTURE_PATHS: ['city_tex1.jpg', 'city_tex2.jpg', 'city_tex3.jpg', 'city_tex4.jpg', 'city_tex5.jpg'],
       HITECH_TEXTURE_PATHS: ['hitech_tex1.jpg', 'hitech_tex2.jpg', 'hitech_tex3.jpg', 'hitech_tex4.jpg'],
