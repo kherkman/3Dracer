@@ -109,7 +109,8 @@
     sienitie: 'sienitie.jpg',
     varikko: 'varikko.jpg',
     booster: 'kiihdytin.jpg',
-    pallo: 'pallo.jpg'
+    pallo: 'pallo.jpg',
+    valtameri: 'asfaltti.jpg'
   };
 
   var CITY_TEXTURE_PATHS = [
