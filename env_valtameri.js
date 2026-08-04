@@ -1,4 +1,4 @@
-// env_valtameri.js - Valtameri-ympäristön 3D-määritelmä (Ainoastaan taivaan ja auringon heijastatava THREE.Water -varjostin)
+// env_valtameri.js - Valtameri-ympäristön 3D-määritelmä (Taivaan, auringon ja kuun heijastava THREE.Water -varjostin & Päivä/Yö kaikille vuodenajoille)
 (function() {
   'use strict';
 
@@ -187,7 +187,7 @@
           self.material.uniforms['textureMatrix'].value.multiply(reflectionCamera.projectionMatrix);
           self.material.uniforms['textureMatrix'].value.multiply(reflectionCamera.matrixWorldInverse);
 
-          // RAJATAAN RATA JA AUTOT POIS HEIJASTUKSESTA
+          // RAJATAAN RATA, REUNAPYL VÄÄT JA AUTOT POIS HEIJASTUKSESTA
           var hiddenObjects = [];
 
           // 1. Piilotetaan autot
@@ -199,13 +199,14 @@
             }
           });
 
-          // 2. Piilotetaan rata, sillat, varikot ja muut ratarakenteet
+          // 2. Piilotetaan rata, sillat, varikot, reunapylväät ja muut ratarakenteet
           for (var cIdx = 0; cIdx < scene.children.length; cIdx++) {
             var child = scene.children[cIdx];
             if (child.visible && child !== self) {
               var isSky = (child.material && child.material.uniforms && child.material.uniforms.topColor);
               var isSunOrMoon = (child.geometry && child.geometry.type === 'SphereGeometry' && child.geometry.parameters && (child.geometry.parameters.radius === 7 || child.geometry.parameters.radius === 6));
-              var isStars = child.isInstancedMesh;
+              
+              var isStars = (child.isInstancedMesh && child.geometry && child.geometry.type === 'SphereGeometry');
               var isClouds = (child.isGroup && child.children && child.children.length > 0 && child.children[0].children && child.children[0].children.length > 0 && child.children[0].children[0].geometry && child.children[0].children[0].geometry.type === 'DodecahedronGeometry');
 
               if (!isSky && !isSunOrMoon && !isStars && !isClouds && !child.isLight) {
@@ -242,7 +243,7 @@
 
           self.visible = true;
 
-          // Palautetaan radan ja autojen näkyvyys
+          // Palautetaan radan, pylväiden ja autojen näkyvyys
           for (var h = 0; h < hiddenObjects.length; h++) {
             hiddenObjects[h].visible = true;
           }
@@ -428,10 +429,13 @@
   window.ENV_BUILDERS['valtameri'] = function(track, bounds, ctx) {
     var oceanGroup = new THREE.Group();
     var season = ctx.currentSeason || 'kesa';
+    var timeOfDay = ctx.currentTimeOfDay || 'paiva';
+    var configKey = season + '_' + timeOfDay;
 
-    // Vuodenaikakohtaiset parametrit (Suoraan valtameri.html määrityksistä)
+    // Vuodenaika- ja vuorokaudenaikakohtaiset parametrit (Täydelliset Päivä & Yö asetukset)
     var seasons = {
-      kesa: {
+      // --- KESÄ ---
+      kesa_paiva: {
         waterColor: 0x006655,
         sunColor: 0xffffff,
         distortionScale: 3.5,
@@ -444,11 +448,25 @@
         particleColor: 0xfff0aa,
         particleSpeedY: -0.05
       },
-      syksy: {
+      kesa_yo: { // Suomalainen valoisa yötön yö
+        waterColor: 0x003344,
+        sunColor: 0xffa066,
+        distortionScale: 2.5,
+        waveHeight: 1.8,
+        waveSpeed: 0.6,
+        foamOpacity: 0.0,
+        algaeOpacity: 0.6,
+        showIce: false,
+        particleOpacity: 0.35,
+        particleColor: 0xffd4b8,
+        particleSpeedY: -0.05
+      },
+      // --- SYKSY ---
+      syksy_paiva: {
         waterColor: 0x031018,
         sunColor: 0xff5500,
         distortionScale: 5.5,
-        waveHeight: 68.0,
+        waveHeight: 6.0,
         waveSpeed: 0.55,
         foamOpacity: 0.95,
         algaeOpacity: 0.0,
@@ -457,7 +475,21 @@
         particleColor: 0x88aacc,
         particleSpeedY: -3.5
       },
-      talvi: {
+      syksy_yo: {
+        waterColor: 0x01080e,
+        sunColor: 0x335588,
+        distortionScale: 6.0,
+        waveHeight: 7.2,
+        waveSpeed: 0.65,
+        foamOpacity: 0.85,
+        algaeOpacity: 0.0,
+        showIce: false,
+        particleOpacity: 0.9,
+        particleColor: 0x557799,
+        particleSpeedY: -4.0
+      },
+      // --- TALVI ---
+      talvi_paiva: {
         waterColor: 0x010d18,
         sunColor: 0xbbe0ff,
         distortionScale: 1.5,
@@ -470,22 +502,49 @@
         particleColor: 0xffffff,
         particleSpeedY: -0.5
       },
-      kevat: {
-        waterColor: 0x007777,
-        sunColor: 0xffe2b4,
-        distortionScale: 0.4,
-        waveHeight: 0.25,
+      talvi_yo: {
+        waterColor: 0x00060d,
+        sunColor: 0x6699cc,
+        distortionScale: 1.2,
+        waveHeight: 0.9,
         waveSpeed: 0.3,
         foamOpacity: 0.0,
+        algaeOpacity: 0.0,
+        showIce: true,
+        particleOpacity: 0.95,
+        particleColor: 0xddeeff,
+        particleSpeedY: -0.4
+      },
+      // --- KEVÄT (LISÄTTY ELOISAT AALLOT) ---
+      kevat_paiva: {
+        waterColor: 0x007777,
+        sunColor: 0xffe2b4,
+        distortionScale: 2.2,
+        waveHeight: 1.6,
+        waveSpeed: 0.6,
+        foamOpacity: 0.15,
         algaeOpacity: 0.0,
         showIce: false,
         particleOpacity: 0.3,
         particleColor: 0xe0ffee,
         particleSpeedY: -0.08
+      },
+      kevat_yo: {
+        waterColor: 0x002d38,
+        sunColor: 0x88bbdd,
+        distortionScale: 2.5,
+        waveHeight: 1.8,
+        waveSpeed: 0.65,
+        foamOpacity: 0.15,
+        algaeOpacity: 0.0,
+        showIce: false,
+        particleOpacity: 0.4,
+        particleColor: 0xaaeeff,
+        particleSpeedY: -0.1
       }
     };
 
-    var waveConfig = seasons[season] || seasons.kesa;
+    var waveConfig = seasons[configKey] || seasons[season + '_paiva'] || seasons.kesa_paiva;
 
     // --- 1. VALTAMEREN PINNAN GEOMETRIA JA TÄYDELLINEN THREE.WATER -PEILIHEIJASTUSOBJEKTI ---
     var size = Math.max(bounds.size * 2.5, 1200);
@@ -570,7 +629,7 @@
     var icebergsData = [];
     if (waveConfig.showIce) {
       var iceMat = new THREE.MeshStandardMaterial({
-        color: 0xdff4f8,
+        color: (timeOfDay === 'yo') ? 0x99cce6 : 0xdff4f8,
         roughness: 0.2,
         metalness: 0.1,
         flatShading: true
