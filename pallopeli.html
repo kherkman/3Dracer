@@ -215,6 +215,7 @@
 <script src="env_synthwave.js"></script>
 <script src="env_hitech.js"></script>
 <script src="env_valtameri.js"></script>
+<script src="env_vuorenhuiput.js"></script>
 
 <script>
 (function() {
@@ -281,8 +282,18 @@
     scene.background = new THREE.Color(0x738060);
     scene.fog = new THREE.FogExp2(0x3a4835, 0.004);
   } else if (currentEnvironment === 'valtameri') {
-    scene.background = new THREE.Color(currentSeason === 'talvi' ? 0x011322 : 0x004455);
-    scene.fog = new THREE.FogExp2(0x004455, 0.003);
+    var isOceanNight = (currentTimeOfDay === 'yo');
+    scene.background = new THREE.Color(isOceanNight ? 0x001122 : (currentSeason === 'talvi' ? 0x011322 : 0x004455));
+    scene.fog = new THREE.FogExp2(scene.background, 0.003);
+  } else if (currentEnvironment === 'vuorenhuiput') {
+    var isMtnNight = (currentTimeOfDay === 'yo');
+    if (isMtnNight) {
+      scene.background = new THREE.Color(currentSeason === 'talvi' ? 0x021217 : (currentSeason === 'syksy' ? 0x0d0b14 : 0x384a6e));
+      scene.fog = new THREE.FogExp2(scene.background, 0.003);
+    } else {
+      scene.background = new THREE.Color(currentSeason === 'talvi' ? 0xcfe2fe : (currentSeason === 'syksy' ? 0xe2d1c3 : 0x9cd3f7));
+      scene.fog = new THREE.FogExp2(scene.background, 0.0025);
+    }
   } else if (currentTimeOfDay === 'yo') {
     scene.background = new THREE.Color(0x0a0e17);
     scene.fog = new THREE.FogExp2(0x0a0e17, 0.0035);
@@ -364,6 +375,9 @@
     groundTexUrl = 'suo.jpg'; groundColor = 0x3a4835;
   } else if (currentEnvironment === 'valtameri') {
     groundTexUrl = 'asfaltti.jpg'; groundColor = 0x004455;
+  } else if (currentEnvironment === 'vuorenhuiput') {
+    groundTexUrl = (currentSeason === 'talvi') ? 'lumi.jpg' : 'hiekka.jpg';
+    groundColor = (currentSeason === 'talvi') ? 0xcfe2fe : 0x4a5568;
   } else if (currentSeason === 'talvi') {
     groundTexUrl = 'lumi.jpg'; groundColor = 0xe2e8f0;
   }
@@ -483,9 +497,11 @@
       isClouds: isClouds,
       ROAD_HALF_WIDTH: 4.0,
       CURB_WIDTH: 0.55,
+      // KORJATTU: Luodaan 22 metrin suoja-alue kentän ja valonheitintornien ympärille, jotta vuoret eivät nouse stadionin päälle
       closestSampleInfo: function(track, x, z) {
-        var dx = Math.max(0, Math.abs(x) - 67);
-        var dz = Math.max(0, Math.abs(z) - 42);
+        var pitchMargin = 22.0; 
+        var dx = Math.max(0, Math.abs(x) - (67 + pitchMargin));
+        var dz = Math.max(0, Math.abs(z) - (42 + pitchMargin));
         var distToPitch = Math.sqrt(dx * dx + dz * dz);
         return { dist: distToPitch, sampleIndex: 0, sample: { x: x, z: z, y: 0 } };
       },
