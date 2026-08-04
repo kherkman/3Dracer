@@ -325,7 +325,7 @@
     }
 
     if (renderer) {
-      renderer.toneMappingExposure = (currentEnvironment === 'valtameri') ? 0.85 : 1.05;
+      renderer.toneMappingExposure = (currentEnvironment === 'valtameri' || currentEnvironment === 'vuorenhuiput') ? 0.95 : 1.05;
     }
 
     if (currentEnvironment === 'synthwave') {
@@ -368,11 +368,71 @@
       sunMesh.visible = false;
       moonMesh.visible = false;
       starsMesh.visible = true;
+    } else if (currentEnvironment === 'vuorenhuiput') {
+      // VASTAA VUORENHUIPUT.HTML ILMAKEHÄÄ JA VALAISTUSTA
+      var isNight = (currentTimeOfDay === 'yo');
+      sunMesh.visible = !isNight;
+      moonMesh.visible = isNight;
+      starsMesh.visible = isNight;
+
+      var fogColHex = 0x9cd3f7;
+      var topColHex = 0x38bdf8;
+      var botColHex = 0x22c55e;
+      var sunColHex = 0xfff5ea;
+      var sunInt = 1.4;
+
+      if (isNight) {
+        if (currentSeason === 'kesa') {
+          fogColHex = 0x384a6e; topColHex = 0x4c638e; botColHex = 0xd97706; sunColHex = 0xffa066; sunInt = 0.85;
+        } else if (currentSeason === 'syksy') {
+          fogColHex = 0x0d0b14; topColHex = 0x1e1b4b; botColHex = 0x451a03; sunColHex = 0xfdba74; sunInt = 0.25;
+        } else if (currentSeason === 'talvi') {
+          fogColHex = 0x021217; topColHex = 0x030712; botColHex = 0x064e3b; sunColHex = 0x38bdf8; sunInt = 0.35;
+        } else if (currentSeason === 'kevat') {
+          fogColHex = 0x081325; topColHex = 0x0c4a6e; botColHex = 0x14532d; sunColHex = 0xbfdbfe; sunInt = 0.3;
+        }
+      } else {
+        if (currentSeason === 'syksy') {
+          fogColHex = 0xe2d1c3; topColHex = 0xf97316; botColHex = 0x78350f; sunColHex = 0xffdbb5; sunInt = 1.2;
+        } else if (currentSeason === 'talvi') {
+          fogColHex = 0xcfe2fe; topColHex = 0x93c5fd; botColHex = 0xbe185d; sunColHex = 0xf0f9ff; sunInt = 1.1;
+        } else if (currentSeason === 'kevat') {
+          fogColHex = 0xbae6fd; topColHex = 0x38bdf8; botColHex = 0x15803d; sunColHex = 0xfffbeb; sunInt = 1.3;
+        }
+      }
+
+      skyMat.uniforms.topColor.value.set(topColHex);
+      skyMat.uniforms.bottomColor.value.set(botColHex);
+
+      scene.fog.near = isFog ? 20 : 180;
+      scene.fog.far = isFog ? 220 : 1400;
+      scene.fog.color.set(isFog ? 0x223344 : fogColHex);
+
+      hemi.color.set(topColHex);
+      hemi.groundColor.set(botColHex);
+
+      sun.color.set(sunColHex);
+      sun.intensity = sunInt;
+
+      var midX = controls.target.x || 0;
+      var midY = controls.target.y || 0;
+      var midZ = controls.target.z || 0;
+
+      if (isNight) {
+        sun.position.set(midX - 120, midY + 120, midZ - 80);
+        moonMesh.position.set(midX - 120, midY + 120, midZ - 80);
+      } else {
+        sun.position.set(midX + 150, midY + 220, midZ + 150);
+        sunMesh.position.set(midX + 150, midY + 220, midZ + 150);
+      }
+      sun.target.position.set(midX, midY, midZ);
+
     } else if (currentEnvironment === 'valtameri') {
-      // VASTAA TÄYDELLISESTI valtameri.html ILMAKEHÄÄ JA VALAISTUSTA
-      sunMesh.visible = true;
-      moonMesh.visible = false;
-      starsMesh.visible = false;
+      // VASTAA TÄYDELLISESTI VALTAMERI-YMPÄRISTÖN PÄIVÄ/YÖ ILMAKEHÄÄ
+      var isNight = (currentTimeOfDay === 'yo');
+      sunMesh.visible = !isNight;
+      moonMesh.visible = isNight;
+      starsMesh.visible = isNight;
 
       var elevation = 40, azimuth = 180;
       var sunColHex = 0xffffff;
@@ -381,27 +441,31 @@
       var botColHex = 0xa0d8ef;
       var sunInt = 2.2;
 
-      if (currentSeason === 'syksy') {
-        elevation = 3; azimuth = 200;
-        sunColHex = 0xff5500;
-        fogColHex = 0x22181c;
-        topColHex = 0x031018;
-        botColHex = 0x22181c;
-        sunInt = 2.5;
-      } else if (currentSeason === 'talvi') {
-        elevation = 1; azimuth = 215;
-        sunColHex = 0xbbe0ff;
-        fogColHex = 0xaec8de;
-        topColHex = 0x010d18;
-        botColHex = 0xaec8de;
-        sunInt = 1.5;
-      } else if (currentSeason === 'kevat') {
-        elevation = 15; azimuth = 150;
-        sunColHex = 0xffe2b4;
-        fogColHex = 0xcbe5ff;
-        topColHex = 0x007777;
-        botColHex = 0xcbe5ff;
-        sunInt = 1.9;
+      if (isNight) {
+        if (currentSeason === 'kesa') {
+          elevation = 8; azimuth = 340;
+          sunColHex = 0xffa066; fogColHex = 0x1a2638; topColHex = 0x002233; botColHex = 0x384a6e; sunInt = 0.8;
+        } else if (currentSeason === 'syksy') {
+          elevation = 12; azimuth = 220;
+          sunColHex = 0x335588; fogColHex = 0x0a1018; topColHex = 0x01080e; botColHex = 0x0a1018; sunInt = 0.5;
+        } else if (currentSeason === 'talvi') {
+          elevation = 10; azimuth = 200;
+          sunColHex = 0x6699cc; fogColHex = 0x081220; topColHex = 0x00060d; botColHex = 0x081220; sunInt = 0.4;
+        } else if (currentSeason === 'kevat') {
+          elevation = 15; azimuth = 210;
+          sunColHex = 0x88bbdd; fogColHex = 0x0a1c28; topColHex = 0x001d24; botColHex = 0x0a1c28; sunInt = 0.6;
+        }
+      } else {
+        if (currentSeason === 'syksy') {
+          elevation = 3; azimuth = 200;
+          sunColHex = 0xff5500; fogColHex = 0x22181c; topColHex = 0x031018; botColHex = 0x22181c; sunInt = 2.5;
+        } else if (currentSeason === 'talvi') {
+          elevation = 1; azimuth = 215;
+          sunColHex = 0xbbe0ff; fogColHex = 0xaec8de; topColHex = 0x010d18; botColHex = 0xaec8de; sunInt = 1.5;
+        } else if (currentSeason === 'kevat') {
+          elevation = 15; azimuth = 150;
+          sunColHex = 0xffe2b4; fogColHex = 0xcbe5ff; topColHex = 0x007777; botColHex = 0xcbe5ff; sunInt = 1.9;
+        }
       }
 
       skyMat.uniforms.topColor.value.set(topColHex);
@@ -409,7 +473,7 @@
 
       scene.fog.near = isFog ? 20 : 150;
       scene.fog.far = isFog ? 250 : 1200;
-      scene.fog.color.set(isFog ? 0x003344 : fogColHex);
+      scene.fog.color.set(isFog ? (isNight ? 0x001122 : 0x003344) : fogColHex);
 
       hemi.color.set(botColHex);
       hemi.groundColor.set(topColHex);
@@ -417,7 +481,6 @@
       sun.color.set(sunColHex);
       sun.intensity = sunInt;
 
-      // Auringon paikan laskenta valtameri.html sfääristen koordinaattien mukaan
       var phi = THREE.MathUtils.degToRad(90 - elevation);
       var theta = THREE.MathUtils.degToRad(azimuth);
       var dist = 250;
@@ -432,7 +495,11 @@
 
       sun.position.set(midX + sunX, midY + Math.max(10, sunY), midZ + sunZ);
       sun.target.position.set(midX, midY, midZ);
-      sunMesh.position.set(midX + sunX, midY + Math.max(10, sunY), midZ + sunZ);
+      if (isNight) {
+        moonMesh.position.set(midX + sunX, midY + Math.max(10, sunY), midZ + sunZ);
+      } else {
+        sunMesh.position.set(midX + sunX, midY + Math.max(10, sunY), midZ + sunZ);
+      }
 
     } else if (currentTimeOfDay === 'yo') {
       skyMat.uniforms.topColor.value.set(0x020408);
@@ -2069,8 +2136,8 @@
     var terr = TrackGenerator.buildTerrain(track, state.currentEnvironment, state.currentSeason, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
     terrainMesh = terr.mesh; terrainInfo = terr.bounds;
     
-    // POISTETAAN MAA VALTAMERI-YMPÄRISTÖSSÄ
-    if (state.currentEnvironment === 'valtameri') {
+    // POISTETAAN MAA VALTAMERI- JA VUORENHUIPUT-YMPÄRISTÖISSÄ
+    if (state.currentEnvironment === 'valtameri' || state.currentEnvironment === 'vuorenhuiput') {
       terrainMesh.visible = false;
     } else {
       terrainMesh.visible = true;
@@ -2119,7 +2186,7 @@
     controls.target.set(midX, avgY+2, midZ);
     controls.setDistance(Math.max(60, terrainInfo.size*0.55));
 
-    if (state.currentEnvironment !== 'valtameri') {
+    if (state.currentEnvironment !== 'valtameri' && state.currentEnvironment !== 'vuorenhuiput') {
       sun.target.position.set(midX, avgY, midZ);
       sun.position.set(midX+180, avgY+30, midZ+90);
     }
@@ -2150,8 +2217,8 @@
     var terr = TrackGenerator.buildTerrain(currentTrack, state.currentEnvironment, state.currentSeason, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
     terrainMesh = terr.mesh; terrainInfo = terr.bounds;
 
-    // POISTETAAN MAA VALTAMERI-YMPÄRISTÖSSÄ
-    if (state.currentEnvironment === 'valtameri') {
+    // POISTETAAN MAA VALTAMERI- JA VUORENHUIPUT-YMPÄRISTÖISSÄ
+    if (state.currentEnvironment === 'valtameri' || state.currentEnvironment === 'vuorenhuiput') {
       terrainMesh.visible = false;
     } else {
       terrainMesh.visible = true;
@@ -2200,7 +2267,7 @@
     controls.target.set(midX, avgY+2, midZ);
     controls.setDistance(Math.max(60, terrainInfo.size*0.55));
 
-    if (state.currentEnvironment !== 'valtameri') {
+    if (state.currentEnvironment !== 'valtameri' && state.currentEnvironment !== 'vuorenhuiput') {
       sun.target.position.set(midX, avgY, midZ);
       sun.position.set(midX+180, avgY+30, midZ+90);
     }
