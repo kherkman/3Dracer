@@ -1083,8 +1083,8 @@
     var mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
 
-    // POISTETAAN MAA VALTAMERI-YMPÄRISTÖSSÄ
-    if (currentEnvironment === 'valtameri') {
+    // POISTETAAN MAA VALTAMERI- JA VUORENHUIPUT-YMPÄRISTÖISSÄ
+    if (currentEnvironment === 'valtameri' || currentEnvironment === 'vuorenhuiput') {
       mesh.visible = false;
     }
 
