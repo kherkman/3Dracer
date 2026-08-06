@@ -35,6 +35,21 @@
   #dividerV { top:0; left:50%; width:4px; height:100%; transform:translateX(-50%); }
   #dividerVTop { top:0; left:50%; width:4px; height:50%; transform:translateX(-50%); }
 
+  /* NAAMA- JA VARTALOOHJAUS OVERLAY */
+  #faceControlOverlay {
+    position: fixed; top: 12px; right: 12px; z-index: 220;
+    display: none; flex-direction: column; align-items: center;
+    background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(10px);
+    border: 2px solid #00f0ff; border-radius: 12px; padding: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); pointer-events: none;
+  }
+  #faceControlCanvas {
+    width: 130px; height: 98px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: #000;
+  }
+  #faceStatusText {
+    font-size: 0.68rem; font-weight: 700; color: #00f0ff; margin-top: 4px; text-align: center;
+  }
+
   /* MAALI BANNERI */
   #goalBanner {
     position: fixed; inset: 0; z-index: 500; display: none;
@@ -54,12 +69,13 @@
   }
 
   /* MODAALIT */
-  #teamsModal, #matchResultModal {
+  #teamsModal, #matchResultModal, #poseInstructionModal {
     position: fixed; inset: 0; z-index: 1000;
     background: rgba(9, 13, 22, 0.92); backdrop-filter: blur(12px);
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
-  #matchResultModal { display: none; }
+  #matchResultModal, #poseInstructionModal { display: none; }
+  #poseInstructionModal { z-index: 4500; }
 
   .teams-card {
     background: #1e293b; border: 2px solid #334155; border-radius: 20px;
@@ -121,6 +137,12 @@
 <div id="dividerV" class="grid-divider"></div>
 <div id="dividerVTop" class="grid-divider"></div>
 
+<!-- NAAMA- JA VARTALOOHJAUS OVERLAY KANVAS -->
+<div id="faceControlOverlay">
+  <canvas id="faceControlCanvas" width="160" height="120"></canvas>
+  <div id="faceStatusText">👤 Kameraohjaus aktiivinen</div>
+</div>
+
 <!-- PELI HUD -->
 <div id="gameHud">
   <div class="team-score"><span id="lblTeam1" style="color:#00f0ff;">TIIMI 1</span> <span id="scoreT1">0</span></div>
@@ -161,6 +183,25 @@
   </div>
 </div>
 
+<!-- VARTALO-OHJAUKSEN OHJEMODAALI -->
+<div id="poseInstructionModal">
+  <div class="teams-card" style="max-width:500px; text-align:center;">
+    <h2>🚶 VARTALO-OHJAUKSEN OHJEET</h2>
+    <div style="display:flex; flex-direction:column; gap:12px; margin:14px 0; font-size:0.92rem; text-align:left;">
+      <div style="background:#0f172a; padding:12px; border-radius:10px; border-left:4px solid #00f0ff;">
+        <b>🔄 Kääntyminen:</b> Nosta oikea tai vasen käsi ylös.
+      </div>
+      <div style="background:#0f172a; padding:12px; border-radius:10px; border-left:4px solid #10b981;">
+        <b>⚡ Kaasutus:</b> Levitä haarat.
+      </div>
+      <div style="background:#0f172a; padding:12px; border-radius:10px; border-left:4px solid #ef4444;">
+        <b>🛑 Jarrutus:</b> Mene kyykkyyn.
+      </div>
+    </div>
+    <button class="action-btn" id="acceptPoseInstructionBtn" style="width:100%;">Selvä, aloitetaan! 🏎️</button>
+  </div>
+</div>
+
 <!-- OTTELUN TULOSRUUTU -->
 <div id="matchResultModal">
   <div class="teams-card" style="align-items: center; text-align: center;">
@@ -187,6 +228,12 @@
 <div id="touchP4" class="touch-controls-container"><div class="joystick-base"><div class="joystick-stick"></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+
+<!-- MEDIAPIPE FACEMESH & POSE SCRIPTIT NAAMA- JA VARTALOOHJAUSTA VARTEN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
 <script src="audio.js"></script>
 <script src="player-controls.js"></script>
 
@@ -216,6 +263,7 @@
 <script src="env_hitech.js"></script>
 <script src="env_valtameri.js"></script>
 <script src="env_vuorenhuiput.js"></script>
+<script src="env_autotehdas.js"></script>
 
 <script>
 (function() {
@@ -265,6 +313,7 @@
   var matchTimeRemaining = durationMin * 60;
   var scoreT1 = 0, scoreT2 = 0;
   var isGoalCooldown = false;
+  var envObjectsGroup = null;
 
   // --- THREE.JS NÄYTTÄMÖ & KAMERAT ---
   var scene = new THREE.Scene();
@@ -294,6 +343,10 @@
       scene.background = new THREE.Color(currentSeason === 'talvi' ? 0xcfe2fe : (currentSeason === 'syksy' ? 0xe2d1c3 : 0x9cd3f7));
       scene.fog = new THREE.FogExp2(scene.background, 0.0025);
     }
+  } else if (currentEnvironment === 'autotehdas') {
+    var isNight = (currentTimeOfDay === 'yo');
+    scene.background = new THREE.Color(isNight ? 0x050811 : 0x0b1320);
+    scene.fog = new THREE.FogExp2(isNight ? 0x1e293b : 0x0b1320, 0.002);
   } else if (currentTimeOfDay === 'yo') {
     scene.background = new THREE.Color(0x0a0e17);
     scene.fog = new THREE.FogExp2(0x0a0e17, 0.0035);
@@ -390,6 +443,11 @@
   outerGroundMesh.position.y = -0.05;
   outerGroundMesh.receiveShadow = true;
   scene.add(outerGroundMesh);
+
+  // Piilotetaan ulkonurmikkotaso autotehtaassa, jotta se ei peitä tai sekotu tehtaan epoksilattiaan!
+  if (currentEnvironment === 'autotehdas') {
+    outerGroundMesh.visible = false;
+  }
 
   // --- PELIPALLOKENTTÄ (130 x 80) ---
   var FIELD_W = 130;
@@ -497,13 +555,12 @@
       isClouds: isClouds,
       ROAD_HALF_WIDTH: 4.0,
       CURB_WIDTH: 0.55,
-      // KORJATTU: Luodaan 22 metrin suoja-alue kentän ja valonheitintornien ympärille, jotta vuoret eivät nouse stadionin päälle
       closestSampleInfo: function(track, x, z) {
         var pitchMargin = 22.0; 
         var dx = Math.max(0, Math.abs(x) - (67 + pitchMargin));
         var dz = Math.max(0, Math.abs(z) - (42 + pitchMargin));
         var distToPitch = Math.sqrt(dx * dx + dz * dz);
-        return { dist: distToPitch, sampleIndex: 0, sample: { x: x, z: z, y: 0 } };
+        return { dist: distToPitch, sampleIndex: 0, sample: { x: x, z: z, y: 0, tx: 1, tz: 0 } };
       },
       terrainSample: function(track, x, z) {
         return { y: 0, color: [0.22, 0.45, 0.18] };
@@ -517,7 +574,7 @@
         cityfloor: 'cityfloor.jpg', hitechroad: 'futurecityfloor.jpg',
         hitechfloor: 'hitech_floor.jpg', shroomfloor: 'sienimaa.jpg',
         sienitie: 'sienitie.jpg', varikko: 'varikko.jpg', booster: 'kiihdytin.jpg',
-        pallo: 'pallo.jpg', valtameri: 'asfaltti.jpg'
+        pallo: 'pallo.jpg', valtameri: 'asfaltti.jpg', tehdaslattia: 'tehdaslattia.jpg'
       },
       CITY_TEXTURE_PATHS: ['city_tex1.jpg', 'city_tex2.jpg', 'city_tex3.jpg', 'city_tex4.jpg', 'city_tex5.jpg'],
       HITECH_TEXTURE_PATHS: ['hitech_tex1.jpg', 'hitech_tex2.jpg', 'hitech_tex3.jpg', 'hitech_tex4.jpg'],
@@ -526,10 +583,16 @@
 
     if (window.ENV_BUILDERS && typeof window.ENV_BUILDERS[currentEnvironment] === 'function') {
       var envObjects = window.ENV_BUILDERS[currentEnvironment](mockTrack, bounds, mockCtx);
-      if (envObjects) scene.add(envObjects);
+      if (envObjects) {
+        scene.add(envObjects);
+        envObjectsGroup = envObjects;
+      }
     } else if (window.ENV_BUILDERS && typeof window.ENV_BUILDERS['simple'] === 'function') {
       var envObjectsSimple = window.ENV_BUILDERS['simple'](mockTrack, bounds, mockCtx);
-      if (envObjectsSimple) scene.add(envObjectsSimple);
+      if (envObjectsSimple) {
+        scene.add(envObjectsSimple);
+        envObjectsGroup = envObjectsSimple;
+      }
     }
   }
 
@@ -796,7 +859,7 @@
     }
   }
 
-  // --- KISOJEN KAMERA SÄÄDÖT PELAAJILTA & KAKSIKUVARUUTU (SPLIT SCREEN) ---
+  // --- KISOJEN KAMERA SÄÄDÖT PELAAJILTA ---
   function updateCameras() {
     var cams = [camera1, camera2, camera3, camera4];
 
@@ -814,28 +877,20 @@
       if (mode === 'near') {
         cam.up.set(0, 1, 0);
         var camDist = 6.0, camHeight = 2.5;
-        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x - fX * camDist, 0.18);
-        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + camHeight, 0.18);
-        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z - fZ * camDist, 0.18);
+        cam.position.set(p.x - fX * camDist, p.y + camHeight, p.z - fZ * camDist);
         cam.lookAt(p.x + fX * 4, p.y + 1.0, p.z + fZ * 4);
       } else if (mode === 'windshield') {
         cam.up.set(0, 1, 0);
-        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x + fX * 0.2, 0.35);
-        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + 0.95, 0.35);
-        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z + fZ * 0.2, 0.35);
+        cam.position.set(p.x + fX * 0.2, p.y + 0.95, p.z + fZ * 0.2);
         cam.lookAt(p.x + fX * 30.0, p.y + 0.95, p.z + fZ * 30.0);
       } else if (mode === 'topdown') {
         cam.up.set(fX, 0, fZ);
-        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x, 0.2);
-        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + 28.0, 0.2);
-        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z, 0.2);
+        cam.position.set(p.x, p.y + 28.0, p.z);
         cam.lookAt(p.x, p.y, p.z);
       } else { // 'far'
         cam.up.set(0, 1, 0);
         var camDist = 18.0, camHeight = 12.0;
-        cam.position.x = THREE.MathUtils.lerp(cam.position.x, p.x - fX * camDist, 0.12);
-        cam.position.y = THREE.MathUtils.lerp(cam.position.y, p.y + camHeight, 0.12);
-        cam.position.z = THREE.MathUtils.lerp(cam.position.z, p.z - fZ * camDist, 0.12);
+        cam.position.set(p.x - fX * camDist, p.y + camHeight, p.z - fZ * camDist);
         cam.lookAt(p.x + fX * 5, p.y + 1.0, p.z + fZ * 5);
       }
     }
@@ -1090,6 +1145,21 @@
   function animate() {
     requestAnimationFrame(animate);
     var delta = clock.getDelta();
+
+    // PÄIVITETÄÄN YMPÄRISTÖN ANIMAATIO-FUNKTIOT (ROBOTIT, LIUKUHIHNA JA TESLAKELAT PALLOPELISSÄ)
+    if (envObjectsGroup) {
+      if (envObjectsGroup.userData && typeof envObjectsGroup.userData.update === 'function') {
+        envObjectsGroup.userData.update(delta, clock.getElapsedTime());
+      }
+      if (envObjectsGroup.children) {
+        for (var eIdx = 0; eIdx < envObjectsGroup.children.length; eIdx++) {
+          var child = envObjectsGroup.children[eIdx];
+          if (child && child.userData && typeof child.userData.update === 'function') {
+            child.userData.update(delta, clock.getElapsedTime());
+          }
+        }
+      }
+    }
 
     if (isMatchRunning) {
       updateCars(delta);
