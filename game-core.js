@@ -162,7 +162,7 @@
   }
 
   /* ---------------------------------------------------------------
-     KAMERA-OHJAUS (ORBIT CONTROLS MOD)
+     KAMERA-OHJAUS (ORBIT CONTROLS)
   --------------------------------------------------------------- */
   var controls = (function(){
     var target = new THREE.Vector3(0, 6, 0);
@@ -368,8 +368,21 @@
       sunMesh.visible = false;
       moonMesh.visible = false;
       starsMesh.visible = true;
+    } else if (currentEnvironment === 'autotehdas') {
+      var isNight = (currentTimeOfDay === 'yo');
+      skyMat.uniforms.topColor.value.set(isNight ? 0x050811 : 0x0b1320);
+      skyMat.uniforms.bottomColor.value.set(isNight ? 0x0284c7 : 0x1e293b);
+      scene.fog.color.set(isFog ? 0x1e293b : 0x0b1320);
+      hemi.color.set(0x0284c7);
+      hemi.groundColor.set(0x0f172a);
+      sun.color.set(0x00f0ff);
+      sun.intensity = 0.5;
+
+      // POISTETAAN AURINKO, KUU JA TÄHDET AUTOTEHTAASSA
+      sunMesh.visible = false;
+      moonMesh.visible = false;
+      starsMesh.visible = false;
     } else if (currentEnvironment === 'vuorenhuiput') {
-      // VASTAA VUORENHUIPUT.HTML ILMAKEHÄÄ JA VALAISTUSTA
       var isNight = (currentTimeOfDay === 'yo');
       sunMesh.visible = !isNight;
       moonMesh.visible = isNight;
@@ -428,7 +441,6 @@
       sun.target.position.set(midX, midY, midZ);
 
     } else if (currentEnvironment === 'valtameri') {
-      // VASTAA TÄYDELLISESTI VALTAMERI-YMPÄRISTÖN PÄIVÄ/YÖ ILMAKEHÄÄ
       var isNight = (currentTimeOfDay === 'yo');
       sunMesh.visible = !isNight;
       moonMesh.visible = isNight;
@@ -2006,6 +2018,9 @@
     updateCameras();
   }
 
+  /* ---------------------------------------------------------------
+     KAMEROIDEN PÄIVITYS
+  --------------------------------------------------------------- */
   function updateCameras() {
     var cams = [camera, camera2, camera3, camera4];
     var state = callbacks.getGameState ? callbacks.getGameState() : {};
@@ -2025,49 +2040,20 @@
         if (mode === 'near') {
           cam.up.set(0, 1, 0);
           var camDist = 4.8, camHeight = 1.9;
-          var targetCamX = p.x - fX * camDist;
-          var targetCamZ = p.z - fZ * camDist;
-          var targetCamY = p.y + camHeight;
-
-          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.18);
-          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.18);
-          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.18);
-
+          cam.position.set(p.x - fX * camDist, p.y + camHeight, p.z - fZ * camDist);
           cam.lookAt(p.x + fX * 4, p.y + 1.0, p.z + fZ * 4);
         } else if (mode === 'windshield') {
           cam.up.set(0, 1, 0);
-          var targetCamX = p.x + fX * 0.2;
-          var targetCamY = p.y + 0.95;
-          var targetCamZ = p.z + fZ * 0.2;
-
-          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.35);
-          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.35);
-          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.35);
-
+          cam.position.set(p.x + fX * 0.2, p.y + 0.95, p.z + fZ * 0.2);
           cam.lookAt(p.x + fX * 30.0, p.y + 0.95, p.z + fZ * 30.0);
         } else if (mode === 'topdown') {
           cam.up.set(fX, 0, fZ);
-          var targetCamX = p.x;
-          var targetCamY = p.y + 26.0;
-          var targetCamZ = p.z;
-
-          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.2);
-          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.2);
-          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.2);
-
+          cam.position.set(p.x, p.y + 26.0, p.z);
           cam.lookAt(p.x, p.y, p.z);
         } else {
-          // 'far' / default
           cam.up.set(0, 1, 0);
           var camDist = 8.5, camHeight = 3.2;
-          var targetCamX = p.x - fX * camDist;
-          var targetCamZ = p.z - fZ * camDist;
-          var targetCamY = p.y + camHeight;
-
-          cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetCamX, 0.12);
-          cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetCamY, 0.12);
-          cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetCamZ, 0.12);
-
+          cam.position.set(p.x - fX * camDist, p.y + camHeight, p.z - fZ * camDist);
           cam.lookAt(p.x + fX * 4, p.y + 1.2, p.z + fZ * 4);
         }
       }
@@ -2096,20 +2082,16 @@
     waterGroup.visible = true;
   }
 
-  // OPTIMOINTI: ESIKÄÄNNETÄÄN WEBGL-VARJOSTIMET (SHADERS) TUNNELI-LAGIN POISTAMISEKSI
   function precompileShaders(state) {
     if (!renderer || !scene || !camera) return;
 
-    // Tilapäisesti aktivoidaan kaikkien autojen ajovalot esikäännöksen ajaksi
     cars.forEach(function(c) {
       if (c.headlight1) c.headlight1.visible = true;
       if (c.headlight2) c.headlight2.visible = true;
     });
 
-    // Pakotetaan WebGL kääntämään kaikki PBR-materiaali- ja valovarjostimet (kerralla radan latauksessa)
     renderer.compile(scene, camera);
 
-    // Palautetaan valojen oikea näkyvyystila
     var isNight = (state.currentTimeOfDay === 'yo');
     cars.forEach(function(c) {
       if (c.headlight1) c.headlight1.visible = isNight || c.inTunnel;
@@ -2136,8 +2118,7 @@
     var terr = TrackGenerator.buildTerrain(track, state.currentEnvironment, state.currentSeason, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
     terrainMesh = terr.mesh; terrainInfo = terr.bounds;
     
-    // POISTETAAN MAA VALTAMERI- JA VUORENHUIPUT-YMPÄRISTÖISSÄ
-    if (state.currentEnvironment === 'valtameri' || state.currentEnvironment === 'vuorenhuiput') {
+    if (state.currentEnvironment === 'valtameri' || state.currentEnvironment === 'vuorenhuiput' || state.currentEnvironment === 'autotehdas') {
       terrainMesh.visible = false;
     } else {
       terrainMesh.visible = true;
@@ -2217,8 +2198,7 @@
     var terr = TrackGenerator.buildTerrain(currentTrack, state.currentEnvironment, state.currentSeason, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
     terrainMesh = terr.mesh; terrainInfo = terr.bounds;
 
-    // POISTETAAN MAA VALTAMERI- JA VUORENHUIPUT-YMPÄRISTÖISSÄ
-    if (state.currentEnvironment === 'valtameri' || state.currentEnvironment === 'vuorenhuiput') {
+    if (state.currentEnvironment === 'valtameri' || state.currentEnvironment === 'vuorenhuiput' || state.currentEnvironment === 'autotehdas') {
       terrainMesh.visible = false;
     } else {
       terrainMesh.visible = true;
@@ -2241,7 +2221,7 @@
     if (typeof TrackGenerator.buildBoosters === 'function') {
       var bData = TrackGenerator.buildBoosters(currentTrack, state.boostersEnabled, state.texturesEnabled, state.loadTextureWithFallback, state.ENV_TEXTURE_PATHS);
       boosterGroup = bData.group;
-      currentTrack.boosters = bData.boosters;
+      track.boosters = bData.boosters;
       if (boosterGroup) scene.add(boosterGroup);
     }
 
@@ -2268,7 +2248,7 @@
     controls.setDistance(Math.max(60, terrainInfo.size*0.55));
 
     if (state.currentEnvironment !== 'valtameri' && state.currentEnvironment !== 'vuorenhuiput') {
-      sun.target.position.set(midX, avgY, midZ);
+      sun.target.position.set(midX, avgY);
       sun.position.set(midX+180, avgY+30, midZ+90);
     }
 
@@ -2291,6 +2271,21 @@
 
     if (isClouds && cloudGroup) {
       cloudGroup.rotation.y += delta * 0.01;
+    }
+
+    // TARKISTETAAN ANIMAATIO-FUNKTIO SELÄ PÄÄRYHMÄSTÄ ETTÄ LAPSIOLIOISTA (factoryGroup)
+    if (forestMesh) {
+      if (forestMesh.userData && typeof forestMesh.userData.update === 'function') {
+        forestMesh.userData.update(delta, clock.getElapsedTime());
+      }
+      if (forestMesh.children) {
+        for (var fIdx = 0; fIdx < forestMesh.children.length; fIdx++) {
+          var fChild = forestMesh.children[fIdx];
+          if (fChild && fChild.userData && typeof fChild.userData.update === 'function') {
+            fChild.userData.update(delta, clock.getElapsedTime());
+          }
+        }
+      }
     }
 
     var state = callbacks.getGameState ? callbacks.getGameState() : {};
