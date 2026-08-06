@@ -110,7 +110,8 @@
     varikko: 'varikko.jpg',
     booster: 'kiihdytin.jpg',
     pallo: 'pallo.jpg',
-    valtameri: 'asfaltti.jpg'
+    valtameri: 'asfaltti.jpg',
+    tehdaslattia: 'tehdaslattia.jpg'
   };
 
   var CITY_TEXTURE_PATHS = [
@@ -142,7 +143,7 @@
     { id: 'pontiacer', name: 'Pontiacer' },
     { id: 'lambo', name: 'Lambo' },
     { id: 'ferrarer', name: 'Ferrarer' },
-    { id: 'simple', name: 'Simple (Perus)' },
+    { id: 'simple', name: 'Simpler' },
     { id: 'custom_upload', name: '➕ Lataa oma malli...' }
   ];
 
@@ -654,6 +655,8 @@
       html += '<option value="touch"' + (cfg.ctrl === 'touch' ? ' selected' : '') + '>📱 Kosketusnäyttö joystick</option>';
       html += '<option value="touch_wheel"' + (cfg.ctrl === 'touch_wheel' ? ' selected' : '') + '>🏎️ Kosketusnäyttö ratti & polkimet</option>';
       html += '<option value="gyro"' + (cfg.ctrl === 'gyro' ? ' selected' : '') + '>📱 Gyro / Kallistus</option>';
+      html += '<option value="face"' + (cfg.ctrl === 'face' ? ' selected' : '') + '>👤 Naamaohjaus (Kamera)</option>';
+      html += '<option value="pose"' + (cfg.ctrl === 'pose' ? ' selected' : '') + '>🚶 Vartalo Kamera (Kamera)</option>';
       html += '<option value="gamepad0"' + (cfg.ctrl === 'gamepad0' ? ' selected' : '') + '>🕹️ Gamepad 1</option>';
       html += '<option value="gamepad1"' + (cfg.ctrl === 'gamepad1' ? ' selected' : '') + '>🕹️ Gamepad 2</option>';
       html += '<option value="gamepad2"' + (cfg.ctrl === 'gamepad2' ? ' selected' : '') + '>🕹️ Gamepad 3</option>';
@@ -712,7 +715,14 @@
     container.querySelectorAll('.ctrl-select').forEach(function(sel) {
       sel.addEventListener('change', function(e) {
         var pIdx = parseInt(e.target.getAttribute('data-player'));
-        playerConfigs[pIdx].ctrl = e.target.value;
+        var newCtrl = e.target.value;
+        playerConfigs[pIdx].ctrl = newCtrl;
+
+        if (newCtrl === 'face' && window.PlayerControls && typeof window.PlayerControls.initFaceControl === 'function') {
+          window.PlayerControls.initFaceControl();
+        } else if (newCtrl === 'pose' && window.PlayerControls && typeof window.PlayerControls.initPoseControl === 'function') {
+          window.PlayerControls.initPoseControl();
+        }
       });
     });
 
